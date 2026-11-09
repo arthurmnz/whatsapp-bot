@@ -1,0 +1,13 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from typing_extensions import Literal
+       
+    1: from pydantic import Field as FieldInfo
+       
+    1: from .._models import BaseModel
+       
+    1: __all__ = ["Missing"]
+       
+       
+    8: class Missing(BaseModel):
+    3:     api_missing: Literal["__missing__"] = FieldInfo(alias="__missing__")

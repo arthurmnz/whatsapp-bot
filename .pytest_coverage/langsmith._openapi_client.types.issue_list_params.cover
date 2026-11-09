@@ -1,0 +1,39 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from __future__ import annotations
+       
+    1: from typing_extensions import Literal, TypedDict
+       
+    1: __all__ = ["IssueListParams"]
+       
+       
+    2: class IssueListParams(TypedDict, total=False):
+    1:     limit: int
+    1:     """Page size (positive integer; defaults to 50, capped at 500)"""
+       
+    1:     offset: int
+    1:     """Page offset (non-negative integer; at most 100000)"""
+       
+    1:     session_id: str
+    1:     """Filter by session ID (UUID)"""
+       
+    1:     session_name: str
+    1:     """Filter by session name (exact match)"""
+       
+    1:     severity: Literal[0, 1, 2, 3]
+    1:     """Filter by severity"""
+       
+    1:     sort_by: Literal["created_at", "updated_at", "severity"]
+    1:     """Sort field"""
+       
+    1:     status: Literal["open", "fixing", "watching", "completed", "ignored"]
+    1:     """Filter by status"""
+       
+    1:     tag: str
+    1:     """Filter by tag (exact match)"""
+       
+    1:     trace_id: str
+    1:     """Return only issues with a linked run in this trace"""
+       
+    1:     updated_at: str
+    1:     """Return only issues updated at or after this RFC3339 timestamp"""

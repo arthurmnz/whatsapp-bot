@@ -1,0 +1,194 @@
+       # PYTHON_ARGCOMPLETE_OK
+    1: """pytest: unit and functional testing with Python."""
+       
+    1: from __future__ import annotations
+       
+    1: from _pytest import __version__
+    1: from _pytest import version_tuple
+    1: from _pytest._code import ExceptionInfo
+    1: from _pytest.approx import Approx
+    1: from _pytest.approx import approx
+    1: from _pytest.assertion import register_assert_rewrite
+    1: from _pytest.cacheprovider import Cache
+    1: from _pytest.capture import CaptureFixture
+    1: from _pytest.config import cmdline
+    1: from _pytest.config import Config
+    1: from _pytest.config import console_main
+    1: from _pytest.config import ExitCode
+    1: from _pytest.config import hookimpl
+    1: from _pytest.config import hookspec
+    1: from _pytest.config import main
+    1: from _pytest.config import PytestPluginManager
+    1: from _pytest.config import UsageError
+    1: from _pytest.config.argparsing import OptionGroup
+    1: from _pytest.config.argparsing import Parser
+    1: from _pytest.debugging import pytestPDB as __pytestPDB
+    1: from _pytest.doctest import DoctestItem
+    1: from _pytest.fixtures import fixture
+    1: from _pytest.fixtures import FixtureDef
+    1: from _pytest.fixtures import FixtureLookupError
+    1: from _pytest.fixtures import FixtureRequest
+    1: from _pytest.fixtures import register_fixture
+    1: from _pytest.fixtures import yield_fixture  # type: ignore[deprecated]
+    1: from _pytest.freeze_support import freeze_includes
+    1: from _pytest.legacypath import TempdirFactory
+    1: from _pytest.legacypath import Testdir
+    1: from _pytest.logging import LogCaptureFixture
+    1: from _pytest.main import Dir
+    1: from _pytest.main import Session
+    1: from _pytest.mark import HIDDEN_PARAM
+    1: from _pytest.mark import Mark
+    1: from _pytest.mark import MARK_GEN as mark
+    1: from _pytest.mark import MarkDecorator
+    1: from _pytest.mark import MarkGenerator
+    1: from _pytest.mark import param
+    1: from _pytest.mark import ParameterSet
+    1: from _pytest.monkeypatch import MonkeyPatch
+    1: from _pytest.nodes import Collector
+    1: from _pytest.nodes import Directory
+    1: from _pytest.nodes import File
+    1: from _pytest.nodes import Item
+    1: from _pytest.outcomes import exit
+    1: from _pytest.outcomes import fail
+    1: from _pytest.outcomes import importorskip
+    1: from _pytest.outcomes import skip
+    1: from _pytest.outcomes import xfail
+    1: from _pytest.pytester import HookRecorder
+    1: from _pytest.pytester import LineMatcher
+    1: from _pytest.pytester import Pytester
+    1: from _pytest.pytester import RecordedHookCall
+    1: from _pytest.pytester import RunResult
+    1: from _pytest.python import Class
+    1: from _pytest.python import Function
+    1: from _pytest.python import Metafunc
+    1: from _pytest.python import Module
+    1: from _pytest.python import Package
+    1: from _pytest.raises import raises
+    1: from _pytest.raises import RaisesExc
+    1: from _pytest.raises import RaisesGroup
+    1: from _pytest.recwarn import deprecated_call
+    1: from _pytest.recwarn import WarningsRecorder
+    1: from _pytest.recwarn import warns
+    1: from _pytest.reports import CollectReport
+    1: from _pytest.reports import TestReport
+    1: from _pytest.runner import CallInfo
+    1: from _pytest.scope import ScopeName
+    1: from _pytest.stash import Stash
+    1: from _pytest.stash import StashKey
+    1: from _pytest.subtests import SubtestReport
+    1: from _pytest.subtests import Subtests
+    1: from _pytest.terminal import TerminalReporter
+    1: from _pytest.terminal import TestShortLogReport
+    1: from _pytest.tmpdir import TempPathFactory
+    1: from _pytest.warning_types import PytestApproxDecimalToleranceWarning
+    1: from _pytest.warning_types import PytestAssertRewriteWarning
+    1: from _pytest.warning_types import PytestCacheWarning
+    1: from _pytest.warning_types import PytestCollectionWarning
+    1: from _pytest.warning_types import PytestConfigWarning
+    1: from _pytest.warning_types import PytestDeprecationWarning
+    1: from _pytest.warning_types import PytestExperimentalApiWarning
+    1: from _pytest.warning_types import PytestFDWarning
+    1: from _pytest.warning_types import PytestRemovedIn10Warning
+    1: from _pytest.warning_types import PytestReturnNotNoneWarning
+    1: from _pytest.warning_types import PytestUnhandledThreadExceptionWarning
+    1: from _pytest.warning_types import PytestUnknownMarkWarning
+    1: from _pytest.warning_types import PytestUnraisableExceptionWarning
+    1: from _pytest.warning_types import PytestWarning
+       
+       
+    1: set_trace = __pytestPDB.set_trace
+       
+       
+   92: __all__ = [
+    1:     "HIDDEN_PARAM",
+    1:     "Approx",
+    1:     "Cache",
+    1:     "CallInfo",
+    1:     "CaptureFixture",
+    1:     "Class",
+    1:     "CollectReport",
+    1:     "Collector",
+    1:     "Config",
+    1:     "Dir",
+    1:     "Directory",
+    1:     "DoctestItem",
+    1:     "ExceptionInfo",
+    1:     "ExitCode",
+    1:     "File",
+    1:     "FixtureDef",
+    1:     "FixtureLookupError",
+    1:     "FixtureRequest",
+    1:     "Function",
+    1:     "HookRecorder",
+    1:     "Item",
+    1:     "LineMatcher",
+    1:     "LogCaptureFixture",
+    1:     "Mark",
+    1:     "MarkDecorator",
+    1:     "MarkGenerator",
+    1:     "Metafunc",
+    1:     "Module",
+    1:     "MonkeyPatch",
+    1:     "OptionGroup",
+    1:     "Package",
+    1:     "ParameterSet",
+    1:     "Parser",
+    1:     "PytestApproxDecimalToleranceWarning",
+    1:     "PytestAssertRewriteWarning",
+    1:     "PytestCacheWarning",
+    1:     "PytestCollectionWarning",
+    1:     "PytestConfigWarning",
+    1:     "PytestDeprecationWarning",
+    1:     "PytestExperimentalApiWarning",
+    1:     "PytestFDWarning",
+    1:     "PytestPluginManager",
+    1:     "PytestRemovedIn10Warning",
+    1:     "PytestReturnNotNoneWarning",
+    1:     "PytestUnhandledThreadExceptionWarning",
+    1:     "PytestUnknownMarkWarning",
+    1:     "PytestUnraisableExceptionWarning",
+    1:     "PytestWarning",
+    1:     "Pytester",
+    1:     "RaisesExc",
+    1:     "RaisesGroup",
+    1:     "RecordedHookCall",
+    1:     "RunResult",
+    1:     "ScopeName",
+    1:     "Session",
+    1:     "Stash",
+    1:     "StashKey",
+    1:     "SubtestReport",
+    1:     "Subtests",
+    1:     "TempPathFactory",
+    1:     "TempdirFactory",
+    1:     "TerminalReporter",
+    1:     "TestReport",
+    1:     "TestShortLogReport",
+    1:     "Testdir",
+    1:     "UsageError",
+    1:     "WarningsRecorder",
+    1:     "__version__",
+    1:     "approx",
+    1:     "cmdline",
+    1:     "console_main",
+    1:     "deprecated_call",
+    1:     "exit",
+    1:     "fail",
+    1:     "fixture",
+    1:     "freeze_includes",
+    1:     "hookimpl",
+    1:     "hookspec",
+    1:     "importorskip",
+    1:     "main",
+    1:     "mark",
+    1:     "param",
+    1:     "raises",
+    1:     "register_assert_rewrite",
+    1:     "register_fixture",
+    1:     "set_trace",
+    1:     "skip",
+    1:     "version_tuple",
+    1:     "warns",
+    1:     "xfail",
+    1:     "yield_fixture",
+       ]

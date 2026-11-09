@@ -1,0 +1,199 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from typing import Dict, Optional
+    1: from datetime import datetime
+       
+    1: from .._models import BaseModel
+       
+    1: __all__ = ["ThreadTrace", "CompletionCostDetails", "CompletionTokenDetails", "PromptCostDetails", "PromptTokenDetails"]
+       
+       
+    8: class CompletionCostDetails(BaseModel):
+    1:     """
+           `completion_cost_details` is the USD cost breakdown for completion-side categories; per-category values are under `raw`. Omitted unless included in `selects`.
+           """
+       
+    3:     raw: Optional[Dict[str, float]] = None
+    1:     """`raw` maps each category name to its estimated USD cost."""
+       
+       
+    8: class CompletionTokenDetails(BaseModel):
+    1:     """
+           `completion_token_details` is the completion-side token breakdown by category; per-category counts are under `raw`. Omitted unless included in `selects`.
+           """
+       
+    3:     raw: Optional[Dict[str, int]] = None
+    1:     """`raw` maps each category name to its completion-token count."""
+       
+       
+    8: class PromptCostDetails(BaseModel):
+    1:     """
+           `prompt_cost_details` is the USD cost breakdown for prompt-side categories; per-category values are under `raw`. Omitted unless included in `selects`.
+           """
+       
+    3:     raw: Optional[Dict[str, float]] = None
+    1:     """`raw` maps each category name to its estimated USD cost."""
+       
+       
+    8: class PromptTokenDetails(BaseModel):
+    1:     """
+           `prompt_token_details` is the prompt-side token breakdown by category; per-category counts are under nested `raw`. Omitted unless included in `selects`.
+           """
+       
+    3:     raw: Optional[Dict[str, int]] = None
+    1:     """`raw` maps each category name to its prompt-token count."""
+       
+       
+   54: class ThreadTrace(BaseModel):
+    3:     completion_cost: Optional[float] = None
+    1:     """`completion_cost` is the estimated USD cost for the completion.
+       
+           Omitted unless included in `selects`.
+           """
+       
+    3:     completion_cost_details: Optional[CompletionCostDetails] = None
+    1:     """
+           `completion_cost_details` is the USD cost breakdown for completion-side
+           categories; per-category values are under `raw`. Omitted unless included in
+           `selects`.
+           """
+       
+    3:     completion_token_details: Optional[CompletionTokenDetails] = None
+    1:     """
+           `completion_token_details` is the completion-side token breakdown by category;
+           per-category counts are under `raw`. Omitted unless included in `selects`.
+           """
+       
+    3:     completion_tokens: Optional[int] = None
+    1:     """`completion_tokens` is the completion-side token count.
+       
+           Omitted unless included in `selects`.
+           """
+       
+    3:     end_time: Optional[datetime] = None
+    1:     """`end_time` is when the root run ended (RFC3339 date-time).
+       
+           JSON null if the run is still in progress. Omitted unless included in `selects`.
+           """
+       
+    3:     error: Optional[str] = None
+    1:     """`error` is the full root run error message when the run failed.
+       
+           Omitted unless included in `selects`.
+           """
+       
+    3:     error_preview: Optional[str] = None
+    1:     """`error_preview` is a short error summary when the run failed.
+       
+           Omitted unless included in `selects`.
+           """
+       
+    3:     first_token_time: Optional[datetime] = None
+    1:     """
+           `first_token_time` is when the first output token was produced (RFC3339
+           date-time), for streamed runs when that metadata exists. Omitted unless included
+           in `selects`.
+           """
+       
+    3:     inputs: Optional[object] = None
+    1:     """`inputs` is the full root run input payload.
+       
+           Omitted unless included in `selects`.
+           """
+       
+    3:     inputs_preview: Optional[str] = None
+    1:     """`inputs_preview` is a truncated text preview of inputs.
+       
+           Omitted unless included in `selects`.
+           """
+       
+    3:     latency: Optional[float] = None
+    1:     """`latency` is wall-clock duration from start to end in seconds.
+       
+           Omitted unless included in `selects`.
+           """
+       
+    3:     name: Optional[str] = None
+    1:     """
+           `name` is a human-readable label for the root run (for example the model name,
+           function name, or step name chosen when the run was traced). Omitted unless
+           included in `selects`.
+           """
+       
+    3:     op: Optional[float] = None
+    1:     """`op` is a numeric code identifying the root run's `run_type` (for example LLM
+           vs.
+       
+           tool vs. chain). Encoded as a number for compatibility with legacy clients;
+           prefer the string `run_type` on `RunResponse` when available. Omitted unless
+           included in `selects`.
+           """
+       
+    3:     outputs: Optional[object] = None
+    1:     """`outputs` is the full root run output payload.
+       
+           Omitted unless included in `selects`.
+           """
+       
+    3:     outputs_preview: Optional[str] = None
+    1:     """`outputs_preview` is a truncated text preview of outputs.
+       
+           Omitted unless included in `selects`.
+           """
+       
+    3:     prompt_cost: Optional[float] = None
+    1:     """`prompt_cost` is the estimated USD cost for the prompt.
+       
+           Omitted unless included in `selects`.
+           """
+       
+    3:     prompt_cost_details: Optional[PromptCostDetails] = None
+    1:     """
+           `prompt_cost_details` is the USD cost breakdown for prompt-side categories;
+           per-category values are under `raw`. Omitted unless included in `selects`.
+           """
+       
+    3:     prompt_token_details: Optional[PromptTokenDetails] = None
+    1:     """
+           `prompt_token_details` is the prompt-side token breakdown by category;
+           per-category counts are under nested `raw`. Omitted unless included in
+           `selects`.
+           """
+       
+    3:     prompt_tokens: Optional[int] = None
+    1:     """`prompt_tokens` is the prompt-side token count.
+       
+           Omitted unless included in `selects`.
+           """
+       
+    3:     start_time: Optional[datetime] = None
+    1:     """`start_time` is when the trace started (RFC3339 date-time).
+       
+           Omitted unless included in `selects`.
+           """
+       
+    3:     thread_id: Optional[str] = None
+    1:     """`thread_id` is the conversation thread UUID that contains this trace.
+       
+           Matches the `thread_id` path parameter of the request. Omitted unless included
+           in `selects`.
+           """
+       
+    3:     total_cost: Optional[float] = None
+    1:     """`total_cost` is the estimated total USD cost for the root run.
+       
+           Omitted unless included in `selects`.
+           """
+       
+    3:     total_tokens: Optional[int] = None
+    1:     """`total_tokens` is the total token count (prompt plus completion).
+       
+           Omitted unless included in `selects`.
+           """
+       
+    3:     trace_id: Optional[str] = None
+    1:     """`trace_id` is the UUID of this trace (the root run).
+       
+           Returned when `TRACE_ID` is in `selects`, or when `selects` is omitted entirely
+           (sole fallback field).
+           """

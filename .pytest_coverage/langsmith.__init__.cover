@@ -1,0 +1,275 @@
+    1: """LangSmith Client."""
+       
+    1: from typing import TYPE_CHECKING, Any, Final
+       
+    1: if TYPE_CHECKING:
+           from langsmith._expect import expect
+           from langsmith._openapi_client._exceptions import (
+               APIConnectionError,
+               APIError,
+               APIResponseValidationError,
+               APIStatusError,
+               APITimeoutError,
+               AuthenticationError,
+               BadRequestError,
+               ConflictError,
+               InternalServerError,
+               LangsmithError,
+               NotFoundError,
+               PermissionDeniedError,
+               RateLimitError,
+               UnprocessableEntityError,
+           )
+           from langsmith.async_client import AsyncClient
+           from langsmith.client import Client, TracingMode
+           from langsmith.evaluation import (
+               aevaluate,
+               aevaluate_existing,
+               evaluate,
+               evaluate_existing,
+           )
+           from langsmith.evaluation.evaluator import EvaluationResult, RunEvaluator
+           from langsmith.prompt_cache import AsyncPromptCache, PromptCache
+           from langsmith.run_helpers import (
+               get_current_run_tree,
+               get_tracing_context,
+               set_run_metadata,
+               trace,
+               traceable,
+               tracing_context,
+           )
+           from langsmith.run_trees import RunTree, configure
+           from langsmith.secret import LangSmithSecret
+           from langsmith.testing._internal import test, unit
+           from langsmith.utils import ContextThreadPoolExecutor
+           from langsmith.uuid import (
+               compute_run_id_for_secondary_replica,
+               uuid7,
+               uuid7_from_datetime,
+           )
+       
+       # Avoid calling into importlib on every call to __version__
+       
+    1: __version__ = "0.12.4"
+    1: version = __version__  # for backwards compatibility
+       
+       # Metadata key to hide a traced run from LangSmith's Messages View.
+    1: LS_MESSAGE_VIEW_EXCLUDE: Final = "ls_message_view_exclude"
+       
+       
+    1: def __getattr__(name: str) -> Any:
+    6:     if name == "__version__":
+               return version
+    6:     elif name == "Client":
+               from langsmith.client import Client
+       
+               return Client
+    6:     elif name == "TracingMode":
+               from langsmith.client import TracingMode
+       
+               return TracingMode
+    6:     elif name == "AsyncClient":
+               from langsmith.async_client import AsyncClient
+       
+               return AsyncClient
+    6:     elif name == "RunTree":
+               from langsmith.run_trees import RunTree
+       
+               return RunTree
+    6:     elif name == "EvaluationResult":
+               from langsmith.evaluation.evaluator import EvaluationResult
+       
+               return EvaluationResult
+    6:     elif name == "RunEvaluator":
+               from langsmith.evaluation.evaluator import RunEvaluator
+       
+               return RunEvaluator
+    6:     elif name == "trace":
+               from langsmith.run_helpers import trace
+       
+               return trace
+    6:     elif name == "traceable":
+               from langsmith.run_helpers import traceable
+       
+               return traceable
+       
+    6:     elif name == "test":
+               from langsmith.testing._internal import test
+       
+               return test
+       
+    6:     elif name == "expect":
+               from langsmith._expect import expect
+       
+               return expect
+    6:     elif name == "evaluate":
+               from langsmith.evaluation import evaluate
+       
+               return evaluate
+       
+    6:     elif name == "evaluate_existing":
+               from langsmith.evaluation import evaluate_existing
+       
+               return evaluate_existing
+    6:     elif name == "aevaluate":
+               from langsmith.evaluation import aevaluate
+       
+               return aevaluate
+    6:     elif name == "aevaluate_existing":
+               from langsmith.evaluation import aevaluate_existing
+       
+               return aevaluate_existing
+    6:     elif name == "tracing_context":
+               from langsmith.run_helpers import tracing_context
+       
+               return tracing_context
+       
+    6:     elif name == "get_tracing_context":
+               from langsmith.run_helpers import get_tracing_context
+       
+               return get_tracing_context
+    6:     elif name == "get_current_run_tree":
+               from langsmith.run_helpers import get_current_run_tree
+       
+               return get_current_run_tree
+    6:     elif name == "set_run_metadata":
+               from langsmith.run_helpers import set_run_metadata
+       
+               return set_run_metadata
+       
+    6:     elif name == "unit":
+               from langsmith.testing._internal import unit
+       
+               return unit
+    6:     elif name == "ContextThreadPoolExecutor":
+               from langsmith.utils import ContextThreadPoolExecutor
+       
+               return ContextThreadPoolExecutor
+    6:     elif name == "configure":
+               from langsmith.run_trees import configure
+       
+               return configure
+    6:     elif name == "compute_run_id_for_secondary_replica":
+               from langsmith.uuid import compute_run_id_for_secondary_replica
+       
+               return compute_run_id_for_secondary_replica
+    6:     elif name == "uuid7":
+               from langsmith.uuid import uuid7
+       
+               return uuid7
+    6:     elif name == "uuid7_from_datetime":
+               from langsmith.uuid import uuid7_from_datetime
+       
+               return uuid7_from_datetime
+    6:     elif name == "PromptCache":
+               from langsmith.prompt_cache import PromptCache
+       
+               return PromptCache
+    6:     elif name == "AsyncPromptCache":
+               from langsmith.prompt_cache import AsyncPromptCache
+       
+               return AsyncPromptCache
+    6:     elif name == "Cache":
+               from langsmith.prompt_cache import Cache
+       
+               return Cache
+    6:     elif name == "AsyncCache":
+               from langsmith.prompt_cache import AsyncCache
+       
+               return AsyncCache
+    6:     elif name == "configure_global_prompt_cache":
+               from langsmith.prompt_cache import configure_global_prompt_cache
+       
+               return configure_global_prompt_cache
+       
+    6:     elif name == "configure_global_async_prompt_cache":
+               from langsmith.prompt_cache import configure_global_async_prompt_cache
+       
+               return configure_global_async_prompt_cache
+       
+    6:     elif name == "LangSmithSecret":
+               from langsmith.secret import LangSmithSecret
+       
+               return LangSmithSecret
+       
+    6:     elif name == "set_runtime_overrides":
+               from langsmith._runtime_overrides import set_runtime_overrides
+       
+               return set_runtime_overrides
+       
+    6:     elif name in (
+               "LangsmithError",
+               "APIError",
+               "APIResponseValidationError",
+               "APIStatusError",
+               "APIConnectionError",
+               "APITimeoutError",
+               "BadRequestError",
+               "AuthenticationError",
+               "PermissionDeniedError",
+               "NotFoundError",
+               "ConflictError",
+               "UnprocessableEntityError",
+               "RateLimitError",
+               "InternalServerError",
+           ):
+               import langsmith._openapi_client._exceptions as _exceptions
+       
+               exception = getattr(_exceptions, name)
+               exception.__module__ = __name__
+               return exception
+       
+    6:     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+       
+       
+   50: __all__ = [
+    1:     "Client",
+    1:     "AsyncClient",
+    1:     "TracingMode",
+    1:     "PromptCache",
+    1:     "AsyncPromptCache",
+    1:     "Cache",
+    1:     "AsyncCache",
+    1:     "configure_global_prompt_cache",
+    1:     "configure_global_async_prompt_cache",
+    1:     "RunTree",
+    1:     "configure",
+    1:     "__version__",
+    1:     "EvaluationResult",
+    1:     "RunEvaluator",
+    1:     "anonymizer",
+    1:     "traceable",
+    1:     "trace",
+    1:     "unit",
+    1:     "test",
+    1:     "expect",
+    1:     "evaluate",
+    1:     "evaluate_existing",
+    1:     "aevaluate_existing",
+    1:     "aevaluate",
+    1:     "tracing_context",
+    1:     "get_tracing_context",
+    1:     "get_current_run_tree",
+    1:     "set_run_metadata",
+    1:     "ContextThreadPoolExecutor",
+    1:     "compute_run_id_for_secondary_replica",
+    1:     "uuid7",
+    1:     "uuid7_from_datetime",
+    1:     "set_runtime_overrides",
+    1:     "LangSmithSecret",
+    1:     "LS_MESSAGE_VIEW_EXCLUDE",
+    1:     "LangsmithError",
+    1:     "APIError",
+    1:     "APIResponseValidationError",
+    1:     "APIStatusError",
+    1:     "APIConnectionError",
+    1:     "APITimeoutError",
+    1:     "BadRequestError",
+    1:     "AuthenticationError",
+    1:     "PermissionDeniedError",
+    1:     "NotFoundError",
+    1:     "ConflictError",
+    1:     "UnprocessableEntityError",
+    1:     "RateLimitError",
+    1:     "InternalServerError",
+       ]

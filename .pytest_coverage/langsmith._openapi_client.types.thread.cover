@@ -1,0 +1,196 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from typing import Dict, List, Optional
+    1: from datetime import datetime
+       
+    1: from .._models import BaseModel
+       
+    1: __all__ = ["Thread", "FeedbackStats"]
+       
+       
+   26: class FeedbackStats(BaseModel):
+    3:     avg: Optional[float] = None
+    1:     """
+           `avg` is the arithmetic mean of numeric feedback scores for this key on the run,
+           or `null` when no numeric score has been recorded (for example purely
+           categorical feedback).
+           """
+       
+    3:     comments: Optional[List[str]] = None
+    1:     """
+           `comments` is a sample of human-readable comments attached to feedback points
+           for this key, in no particular order. May be empty; is not exhaustive when many
+           comments exist.
+           """
+       
+    3:     contains_thread_feedback: Optional[bool] = None
+    1:     """
+           `contains_thread_feedback` is true when at least one feedback point for this key
+           was submitted at the thread level (rather than at an individual run). Always
+           false on responses that already describe a single run in isolation.
+           """
+       
+    3:     errors: Optional[int] = None
+    1:     """
+           `errors` is the number of feedback points recorded as errors rather than
+           successful scores (for example an automated evaluator that raised an exception).
+           Defaults to 0 when no errors occurred.
+           """
+       
+    3:     max: Optional[float] = None
+    1:     """
+           `max` is the largest numeric feedback score recorded for this key on the run, or
+           `null` when no numeric score has been recorded.
+           """
+       
+    3:     min: Optional[float] = None
+    1:     """
+           `min` is the smallest numeric feedback score recorded for this key on the run,
+           or `null` when no numeric score has been recorded.
+           """
+       
+    3:     n: Optional[int] = None
+    1:     """`n` is the number of feedback points recorded for this key on the run.
+       
+           For numeric feedback this is the sample size behind `avg`, `min`, `max`, and
+           `stdev`; for categorical feedback it is the sum of the `values` counts.
+           """
+       
+    3:     sources: Optional[List[object]] = None
+    1:     """`sources` is a sample of feedback sources for this key.
+       
+           Each entry is either a plain string identifier (for example `"api"`, `"app"`,
+           `"model"`) or a JSON object describing a synthetic source (for example
+           `{"type": "__ls_composite_feedback"}` for a computed aggregate). Clients must
+           tolerate both shapes.
+           """
+       
+    3:     stdev: Optional[float] = None
+    1:     """
+           `stdev` is the sample standard deviation of numeric feedback scores for this key
+           on the run, or `null` when it cannot be computed (for example fewer than two
+           numeric scores, or purely categorical feedback).
+           """
+       
+    3:     values: Optional[Dict[str, int]] = None
+    1:     """
+           `values` is the distribution of categorical feedback labels for this key,
+           mapping each label to its occurrence count. Empty (`{}`) for purely numeric
+           feedback.
+           """
+       
+       
+   44: class Thread(BaseModel):
+    3:     count: Optional[int] = None
+    1:     """
+           `count` is how many root traces (conversation turns) fall in this thread for the
+           query time range.
+           """
+       
+    3:     feedback_stats: Optional[Dict[str, FeedbackStats]] = None
+    1:     """
+           `feedback_stats` is the aggregated feedback across traces in the thread, keyed
+           by feedback key; shape matches `feedback_stats` on a single run.
+           """
+       
+    3:     first_inputs: Optional[str] = None
+    1:     """
+           `first_inputs` is a truncated preview of inputs from the earliest trace in the
+           thread for the query window.
+           """
+       
+    3:     first_trace_id: Optional[str] = None
+    1:     """
+           `first_trace_id` is the root trace UUID for the chronologically first trace in
+           the query time window.
+           """
+       
+    3:     last_error: Optional[str] = None
+    1:     """
+           `last_error` is a short error summary from the most recent failing trace in the
+           thread. Absent when there is no error in the window.
+           """
+       
+    3:     last_outputs: Optional[str] = None
+    1:     """
+           `last_outputs` is a truncated preview of outputs from the latest trace in the
+           thread for the query window.
+           """
+       
+    3:     last_trace_id: Optional[str] = None
+    1:     """
+           `last_trace_id` is the root trace UUID for the chronologically last trace in the
+           query time window.
+           """
+       
+    3:     latency_p50: Optional[float] = None
+    1:     """
+           `latency_p50` is the approximate median end-to-end latency of traces in the
+           thread, in seconds.
+           """
+       
+    3:     latency_p99: Optional[float] = None
+    1:     """
+           `latency_p99` is the approximate 99th percentile end-to-end latency of traces in
+           the thread, in seconds.
+           """
+       
+    3:     max_start_time: Optional[datetime] = None
+    1:     """
+           `max_start_time` is the latest trace start time in the thread (RFC3339
+           date-time).
+           """
+       
+    3:     min_start_time: Optional[datetime] = None
+    1:     """
+           `min_start_time` is the earliest trace start time in the thread (RFC3339
+           date-time).
+           """
+       
+    3:     num_errored_turns: Optional[int] = None
+    1:     """
+           `num_errored_turns` is the count of root traces in the thread (within the query
+           window) whose status was an error.
+           """
+       
+    3:     start_time: Optional[datetime] = None
+    1:     """
+           `start_time` is a reference start time for this row (RFC3339 date-time), such as
+           for sorting.
+           """
+       
+    3:     thread_id: Optional[str] = None
+    1:     """
+           `thread_id` identifies this conversation thread within the project from the
+           request body `project_id`.
+           """
+       
+    3:     total_cost: Optional[float] = None
+    1:     """`total_cost` is the sum of estimated USD cost across those traces."""
+       
+    3:     total_cost_details: Optional[Dict[str, float]] = None
+    1:     """
+           `total_cost_details` sums per-category estimated USD cost across traces in the
+           thread. Keys mirror `total_token_details`.
+       
+           Example: `{"cache_read": 0.012, "reasoning": 0.008}`.
+           """
+       
+    3:     total_token_details: Optional[Dict[str, int]] = None
+    1:     """`total_token_details` sums per-category token counts across traces in the
+           thread.
+       
+           Keys are model-specific category names (for example `cache_read`, `cache_write`,
+           `reasoning`, `audio`).
+       
+           Example: `{"cache_read": 400, "reasoning": 120}`.
+           """
+       
+    3:     total_tokens: Optional[int] = None
+    1:     """`total_tokens` is the sum of token usage across those traces."""
+       
+    3:     trace_id: Optional[str] = None
+    1:     """
+           `trace_id` is a representative root trace UUID when the summary includes one,
+           for example for deep links.
+           """

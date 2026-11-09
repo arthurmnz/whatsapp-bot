@@ -1,0 +1,139 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from typing import Dict, List, Optional
+    1: from datetime import datetime
+    1: from typing_extensions import Literal
+       
+    1: from .._models import BaseModel
+    1: from .run_type_enum import RunTypeEnum
+       
+    1: __all__ = ["RunSchemaWithAnnotationQueueInfo"]
+       
+       
+  130: class RunSchemaWithAnnotationQueueInfo(BaseModel):
+    1:     """Run schema with annotation queue info."""
+       
+    2:     id: str
+       
+    2:     app_path: str
+       
+    2:     dotted_order: str
+       
+    2:     name: str
+       
+    2:     queue_run_id: str
+       
+    2:     run_type: RunTypeEnum
+    1:     """Enum for run types."""
+       
+    2:     session_id: str
+       
+    2:     status: str
+       
+    2:     trace_id: str
+       
+    3:     added_at: Optional[datetime] = None
+       
+    3:     child_run_ids: Optional[List[str]] = None
+       
+    3:     completed_by: Optional[List[str]] = None
+       
+    3:     completion_cost: Optional[str] = None
+       
+    3:     completion_cost_details: Optional[Dict[str, str]] = None
+       
+    3:     completion_token_details: Optional[Dict[str, int]] = None
+       
+    3:     completion_tokens: Optional[int] = None
+       
+    3:     direct_child_run_ids: Optional[List[str]] = None
+       
+    3:     effective_added_at: Optional[datetime] = None
+       
+    3:     end_time: Optional[datetime] = None
+       
+    3:     error: Optional[str] = None
+       
+    3:     events: Optional[List[Dict[str, object]]] = None
+       
+    3:     execution_order: Optional[int] = None
+       
+    3:     extra: Optional[Dict[str, object]] = None
+       
+    3:     feedback_stats: Optional[Dict[str, Dict[str, object]]] = None
+       
+    3:     first_token_time: Optional[datetime] = None
+       
+    3:     in_dataset: Optional[bool] = None
+       
+    3:     inputs: Optional[Dict[str, object]] = None
+       
+    3:     inputs_preview: Optional[str] = None
+       
+    3:     inputs_s3_urls: Optional[Dict[str, object]] = None
+       
+    3:     last_queued_at: Optional[datetime] = None
+       
+    3:     last_reviewed_time: Optional[datetime] = None
+       
+    3:     manifest_id: Optional[str] = None
+       
+    3:     manifest_s3_id: Optional[str] = None
+       
+    3:     messages: Optional[List[Dict[str, object]]] = None
+       
+    3:     outputs: Optional[Dict[str, object]] = None
+       
+    3:     outputs_preview: Optional[str] = None
+       
+    3:     outputs_s3_urls: Optional[Dict[str, object]] = None
+       
+    3:     parent_run_id: Optional[str] = None
+       
+    3:     parent_run_ids: Optional[List[str]] = None
+       
+    3:     price_model_id: Optional[str] = None
+       
+    3:     prompt_cost: Optional[str] = None
+       
+    3:     prompt_cost_details: Optional[Dict[str, str]] = None
+       
+    3:     prompt_token_details: Optional[Dict[str, int]] = None
+       
+    3:     prompt_tokens: Optional[int] = None
+       
+    3:     reference_dataset_id: Optional[str] = None
+       
+    3:     reference_example_id: Optional[str] = None
+       
+    3:     reserved_by: Optional[List[str]] = None
+       
+    3:     s3_urls: Optional[Dict[str, object]] = None
+       
+    3:     serialized: Optional[Dict[str, object]] = None
+       
+    3:     share_token: Optional[str] = None
+       
+    3:     source_proposed_example_id: Optional[str] = None
+       
+    3:     start_time: Optional[datetime] = None
+       
+    3:     tags: Optional[List[str]] = None
+       
+    3:     thread_id: Optional[str] = None
+       
+    3:     total_cost: Optional[str] = None
+       
+    3:     total_tokens: Optional[int] = None
+       
+    3:     trace_first_received_at: Optional[datetime] = None
+       
+    3:     trace_max_start_time: Optional[datetime] = None
+       
+    3:     trace_min_start_time: Optional[datetime] = None
+       
+    3:     trace_tier: Optional[Literal["longlived", "shortlived"]] = None
+       
+    3:     trace_upgrade: Optional[bool] = None
+       
+    3:     ttl_seconds: Optional[int] = None

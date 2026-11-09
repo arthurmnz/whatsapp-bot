@@ -1,0 +1,69 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from __future__ import annotations
+       
+    1: from typing import List
+    1: from typing_extensions import Literal, Required, TypedDict
+       
+    1: __all__ = ["ThreadListTracesParams"]
+       
+       
+    2: class ThreadListTracesParams(TypedDict, total=False):
+    1:     project_id: Required[str]
+    1:     """`project_id` is the tracing project UUID (required)."""
+       
+    1:     cursor: str
+    1:     """`cursor` is the opaque string from a previous response's `next_cursor`.
+       
+           Omit on the first request; pass the returned cursor to fetch the next page.
+           """
+       
+    1:     filter: str
+    1:     """
+           `filter` narrows which traces are returned for this thread, using a LangSmith
+           filter expression evaluated against each root trace run. For example: eq(status,
+           "success") or has(tags, "production"). See
+           https://docs.langchain.com/langsmith/trace-query-syntax#filter-query-language
+           for syntax.
+           """
+       
+    1:     page_size: int
+    1:     """`page_size` is the maximum number of traces to return in this response.
+       
+           Defaults to 20 when omitted; must be between 1 and 100 inclusive when set.
+           """
+       
+    1:     selects: List[
+               Literal[
+                   "THREAD_ID",
+                   "TRACE_ID",
+                   "OP",
+                   "PROMPT_TOKENS",
+                   "COMPLETION_TOKENS",
+                   "TOTAL_TOKENS",
+                   "START_TIME",
+                   "END_TIME",
+                   "LATENCY",
+                   "FIRST_TOKEN_TIME",
+                   "INPUTS_PREVIEW",
+                   "OUTPUTS_PREVIEW",
+                   "INPUTS",
+                   "OUTPUTS",
+                   "ERROR",
+                   "PROMPT_COST",
+                   "COMPLETION_COST",
+                   "TOTAL_COST",
+                   "PROMPT_TOKEN_DETAILS",
+                   "COMPLETION_TOKEN_DETAILS",
+                   "PROMPT_COST_DETAILS",
+                   "COMPLETION_COST_DETAILS",
+                   "NAME",
+                   "ERROR_PREVIEW",
+               ]
+           ]
+    1:     """
+           `selects` lists which properties to include on each returned trace (repeatable
+           query parameter). Accepts any value of the `ThreadTraceSelectField` enum.
+           Properties not listed are omitted from each trace object; `trace_id` is always
+           returned.
+           """

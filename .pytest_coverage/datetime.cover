@@ -1,0 +1,13 @@
+    1: """Specific date/time and related types.
+       
+       See https://data.iana.org/time-zones/tz-link.html for
+       time zone and DST data sources.
+       """
+       
+    1: try:
+    1:     from _datetime import *
+       except ImportError:
+           from _pydatetime import *
+       
+    1: __all__ = ("date", "datetime", "time", "timedelta", "timezone", "tzinfo",
+                  "MINYEAR", "MAXYEAR", "UTC")

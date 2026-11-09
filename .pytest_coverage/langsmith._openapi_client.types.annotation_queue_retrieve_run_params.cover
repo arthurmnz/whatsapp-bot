@@ -1,0 +1,13 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from __future__ import annotations
+       
+    1: from typing_extensions import Required, TypedDict
+       
+    1: __all__ = ["AnnotationQueueRetrieveRunParams"]
+       
+       
+    2: class AnnotationQueueRetrieveRunParams(TypedDict, total=False):
+    1:     queue_id: Required[str]
+       
+    1:     include_extra: bool

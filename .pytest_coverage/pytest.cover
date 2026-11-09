@@ -1,0 +1,6 @@
+       #!/home/arthurmnz/code/whatsApp-bot/venv/bin/python
+    1: import sys
+    1: from _pytest.config import _console_main
+    1: if __name__ == '__main__':
+    1:     sys.argv[0] = sys.argv[0].removesuffix('.exe')
+    1:     sys.exit(_console_main())

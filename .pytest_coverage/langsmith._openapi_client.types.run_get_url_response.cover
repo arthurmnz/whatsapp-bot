@@ -1,0 +1,11 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from typing import Optional
+       
+    1: from .._models import BaseModel
+       
+    1: __all__ = ["RunGetURLResponse"]
+       
+       
+    8: class RunGetURLResponse(BaseModel):
+    3:     url: Optional[str] = None

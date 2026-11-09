@@ -1,0 +1,25 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from typing import Optional
+    1: from datetime import datetime
+       
+    1: from .._models import BaseModel
+       
+    1: __all__ = ["TraceAggregates"]
+       
+       
+   12: class TraceAggregates(BaseModel):
+    3:     first_token_time: Optional[datetime] = None
+    1:     """
+           `first_token_time` is when the first output token was produced anywhere in the
+           trace (RFC3339), when recorded.
+           """
+       
+    3:     total_cost: Optional[float] = None
+    1:     """`total_cost` is total estimated USD cost across every run in the trace."""
+       
+    3:     total_tokens: Optional[int] = None
+    1:     """
+           `total_tokens` is prompt plus completion tokens summed across every run in the
+           trace.
+           """

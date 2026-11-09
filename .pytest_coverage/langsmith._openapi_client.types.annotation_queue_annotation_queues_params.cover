@@ -1,0 +1,43 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from __future__ import annotations
+       
+    1: from typing import Dict, Union, Iterable, Optional
+    1: from datetime import datetime
+    1: from typing_extensions import Required, Annotated, TypedDict
+       
+    1: from .._types import SequenceNotStr
+    1: from .._utils import PropertyInfo
+    1: from .annotation_queue_rubric_item_schema_param import AnnotationQueueRubricItemSchemaParam
+       
+    1: __all__ = ["AnnotationQueueAnnotationQueuesParams"]
+       
+       
+    2: class AnnotationQueueAnnotationQueuesParams(TypedDict, total=False):
+    1:     name: Required[str]
+       
+    1:     id: str
+       
+    1:     created_at: Annotated[Union[str, datetime], PropertyInfo(format="iso8601")]
+       
+    1:     default_dataset: Optional[str]
+       
+    1:     description: Optional[str]
+       
+    1:     enable_reservations: Optional[bool]
+       
+    1:     metadata: Optional[Dict[str, object]]
+       
+    1:     num_reviewers_per_item: Optional[int]
+       
+    1:     reservation_minutes: Optional[int]
+       
+    1:     reviewer_access_mode: str
+       
+    1:     rubric_instructions: Optional[str]
+       
+    1:     rubric_items: Optional[Iterable[AnnotationQueueRubricItemSchemaParam]]
+       
+    1:     session_ids: Optional[SequenceNotStr[str]]
+       
+    1:     updated_at: Annotated[Union[str, datetime], PropertyInfo(format="iso8601")]

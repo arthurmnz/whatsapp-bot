@@ -1,0 +1,172 @@
+    1: import struct
+       
+       
+    1: def load_tzdata(key):
+    3:     from importlib import resources
+       
+    3:     components = key.split("/")
+    3:     package_name = ".".join(["tzdata.zoneinfo"] + components[:-1])
+    3:     resource_name = components[-1]
+       
+    3:     try:
+    3:         path = resources.files(package_name).joinpath(resource_name)
+               # gh-85702: Prevent PermissionError on Windows
+               if path.is_dir():
+                   raise IsADirectoryError
+               return path.open("rb")
+    3:     except (ImportError, FileNotFoundError, UnicodeEncodeError, IsADirectoryError):
+               # There are four types of exception that can be raised that all amount
+               # to "we cannot find this key":
+               #
+               # ImportError: If package_name doesn't exist (e.g. if tzdata is not
+               #   installed, or if there's an error in the folder name like
+               #   Amrica/New_York)
+               # FileNotFoundError: If resource_name doesn't exist in the package
+               #   (e.g. Europe/Krasnoy)
+               # UnicodeEncodeError: If package_name or resource_name are not UTF-8,
+               #   such as keys containing a surrogate character.
+               # IsADirectoryError: If package_name without a resource_name specified.
+    3:         raise ZoneInfoNotFoundError(f"No time zone found with key {key}")
+       
+       
+    1: def load_data(fobj):
+    2:     header = _TZifHeader.from_file(fobj)
+       
+    2:     if header.version == 1:
+               time_size = 4
+               time_type = "l"
+           else:
+               # Version 2+ has 64-bit integer transition times
+    2:         time_size = 8
+    2:         time_type = "q"
+       
+               # Version 2+ also starts with a Version 1 header and data, which
+               # we need to skip now
+    2:         skip_bytes = (
+   12:             header.timecnt * 5  # Transition times and types
+    2:             + header.typecnt * 6  # Local time type records
+    2:             + header.charcnt  # Time zone designations
+    2:             + header.leapcnt * 8  # Leap second records
+    2:             + header.isstdcnt  # Standard/wall indicators
+    2:             + header.isutcnt  # UT/local indicators
+               )
+       
+    2:         fobj.seek(skip_bytes, 1)
+       
+               # Now we need to read the second header, which is not the same
+               # as the first
+    2:         header = _TZifHeader.from_file(fobj)
+       
+    2:     typecnt = header.typecnt
+    2:     timecnt = header.timecnt
+    2:     charcnt = header.charcnt
+       
+           # The data portion starts with timecnt transitions and indices
+    2:     if timecnt:
+    4:         trans_list_utc = struct.unpack(
+    2:             f">{timecnt}{time_type}", fobj.read(timecnt * time_size)
+               )
+    2:         trans_idx = struct.unpack(f">{timecnt}B", fobj.read(timecnt))
+       
+    2:         if max(trans_idx) >= typecnt:
+                   raise ValueError("Invalid transition index found while reading TZif: "
+                                   f"{max(trans_idx)}")
+           else:
+               trans_list_utc = ()
+               trans_idx = ()
+       
+           # Read the ttinfo struct, (utoff, isdst, abbrind)
+    2:     if typecnt:
+    4:         utcoff, isdst, abbrind = zip(
+   10:             *(struct.unpack(">lbb", fobj.read(6)) for i in range(typecnt))
+               )
+           else:
+               utcoff = ()
+               isdst = ()
+               abbrind = ()
+       
+           # Now read the abbreviations. They are null-terminated strings, indexed
+           # not by position in the array but by position in the unsplit
+           # abbreviation string. I suppose this makes more sense in C, which uses
+           # null to terminate the strings, but it's inconvenient here...
+    2:     abbr_vals = {}
+    2:     abbr_chars = fobj.read(charcnt)
+       
+    2:     def get_abbr(idx):
+               # Gets a string starting at idx and running until the next \x00
+               #
+               # We cannot pre-populate abbr_vals by splitting on \x00 because there
+               # are some zones that use subsets of longer abbreviations, like so:
+               #
+               #  LMT\x00AHST\x00HDT\x00
+               #
+               # Where the idx to abbr mapping should be:
+               #
+               # {0: "LMT", 4: "AHST", 5: "HST", 9: "HDT"}
+    6:         if idx not in abbr_vals:
+    6:             span_end = abbr_chars.find(b"\x00", idx)
+    6:             abbr_vals[idx] = abbr_chars[idx:span_end].decode()
+       
+    6:         return abbr_vals[idx]
+       
+   16:     abbr = tuple(get_abbr(idx) for idx in abbrind)
+       
+           # The remainder of the file consists of leap seconds (currently unused) and
+           # the standard/wall and ut/local indicators, which are metadata we don't need.
+           # In version 2 files, we need to skip the unnecessary data to get at the TZ string:
+    2:     if header.version >= 2:
+               # Each leap second record has size (time_size + 4)
+    2:         skip_bytes = header.isutcnt + header.isstdcnt + header.leapcnt * 12
+    2:         fobj.seek(skip_bytes, 1)
+       
+    2:         c = fobj.read(1)  # Should be \n
+    2:         assert c == b"\n", c
+       
+    2:         line = fobj.readline()
+    2:         if not line.endswith(b"\n"):
+                   raise ValueError("Invalid TZif file: unexpected end of file")
+    2:         tz_str = line.rstrip(b"\n")
+           else:
+               tz_str = None
+       
+    2:     return trans_idx, trans_list_utc, utcoff, isdst, abbr, tz_str
+       
+       
+    2: class _TZifHeader:
+    1:     __slots__ = [
+               "version",
+               "isutcnt",
+               "isstdcnt",
+               "leapcnt",
+               "timecnt",
+               "typecnt",
+               "charcnt",
+           ]
+       
+    1:     def __init__(self, *args):
+   32:         for attr, val in zip(self.__slots__, args, strict=True):
+   28:             setattr(self, attr, val)
+       
+    2:     @classmethod
+    2:     def from_file(cls, stream):
+               # The header starts with a 4-byte "magic" value
+    4:         if stream.read(4) != b"TZif":
+                   raise ValueError("Invalid TZif file: magic not found")
+       
+    4:         _version = stream.read(1)
+    4:         if _version == b"\x00":
+                   version = 1
+               else:
+    4:             version = int(_version)
+    4:         stream.read(15)
+       
+    4:         args = (version,)
+       
+               # Slots are defined in the order that the bytes are arranged
+    4:         args = args + struct.unpack(">6l", stream.read(24))
+       
+    4:         return cls(*args)
+       
+       
+    2: class ZoneInfoNotFoundError(KeyError):
+    1:     """Exception raised when a ZoneInfo key is not found."""

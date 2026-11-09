@@ -1,0 +1,147 @@
+    1: """
+       Tracing utils
+       """
+       
+    1: from __future__ import annotations
+       
+    1: from collections.abc import Callable
+    1: from collections.abc import Sequence
+    1: import enum
+    1: import os
+    1: from typing import Any
+       
+       
+    1: _Writer = Callable[[str], object]
+    1: _Processor = Callable[[tuple[str, ...], tuple[Any, ...]], object]
+       
+       
+    1: def _describe_failure(exc: Exception, obj: object, func: str) -> str:
+           try:
+               exc_info = repr(exc)
+           except Exception:
+               exc_info = f"unpresentable {type(exc).__name__}"
+           name = type(obj).__name__
+           return f"<[{exc_info} raised in {func}()] {name} object at 0x{id(obj):x}>"
+       
+       
+    1: def _escape_surrogates(text: str) -> str:
+           """Escape lone surrogates so the result survives any text writer.
+       
+           A lone surrogate reaching the writer raises :exc:`UnicodeEncodeError`
+           inside the trace call for any utf-8 target, such as the file behind
+           pytest's ``--debug``.
+           """
+           if text.isascii():
+               return text
+           return text.encode("utf-8", "backslashreplace").decode("utf-8")
+       
+       
+    1: def _safe_str(obj: object) -> str:
+           """``str(obj)`` for tracing, with a failing ``__str__`` rendered, not raised.
+       
+           The result has lone surrogates escaped, so any text writer accepts it.
+           """
+           try:
+               text = str(obj)
+           except Exception as exc:
+               text = _describe_failure(exc, obj, "str")
+           return _escape_surrogates(text)
+       
+       
+    1: def _is_plain_token(text: str) -> bool:
+           """Whether ``text`` can be shown bare, without quotes around it."""
+           return bool(text) and text.isprintable() and " " not in text
+       
+       
+    1: def _format_block(indent: str, lines: list[str]) -> list[str]:
+           """Indent a multi line value under its key, so it reads as one value."""
+           return [f"{indent}      {line}\n" for line in lines]
+       
+       
+    1: def _render_value(obj: object) -> str:
+           """Render a traced value, adding detail only where ``str`` is ambiguous."""
+           # Before the str check: a StrEnum member is a str whose str() drops the name.
+           if isinstance(obj, (enum.Enum, os.PathLike)):
+               return _safe_repr(obj)
+           if isinstance(obj, str):
+               if len(obj.splitlines()) > 1:
+                   return _safe_str(obj)
+               if _is_plain_token(obj):
+                   return _safe_str(obj)
+               return _safe_repr(obj)
+           return _safe_str(obj)
+       
+       
+    1: def _safe_repr(obj: object) -> str:
+           """``repr(obj)`` for tracing, with a failing ``__repr__`` rendered, not raised.
+       
+           The result has lone surrogates escaped, so any text writer accepts it.
+           """
+           try:
+               text = repr(obj)
+           except Exception as exc:
+               text = _describe_failure(exc, obj, "repr")
+           return _escape_surrogates(text)
+       
+       
+    2: class TagTracer:
+    1:     def __init__(self) -> None:
+    1:         self._tags2proc: dict[tuple[str, ...], _Processor] = {}
+    1:         self._writer: _Writer | None = None
+    1:         self.indent = 0
+       
+    1:     def get(self, name: str) -> TagTracerSub:
+    4:         return TagTracerSub(self, (name,))
+       
+    1:     def _format_message(self, tags: Sequence[str], args: Sequence[object]) -> str:
+               if isinstance(args[-1], dict):
+                   extra = args[-1]
+                   args = args[:-1]
+               else:
+                   extra = {}
+       
+               content = " ".join(map(_safe_str, args))
+               indent = "  " * self.indent
+       
+               lines = [f"{indent}{content} [{':'.join(tags)}]\n"]
+       
+               for name, value in extra.items():
+                   rendered = _render_value(value)
+                   # A bare \r is a line break too: inline, the terminal would
+                   # return to column 0 and overwrite the key.
+                   body = rendered.splitlines()
+                   if body in ([], [rendered]):
+                       lines.append(f"{indent}    {name}: {rendered}\n")
+                   else:
+                       lines.append(f"{indent}    {name}:\n")
+                       lines.extend(_format_block(indent, body))
+       
+               return "".join(lines)
+       
+    1:     def _processmessage(self, tags: tuple[str, ...], args: tuple[object, ...]) -> None:
+ 1093:         if self._writer is not None and args:
+                   self._writer(self._format_message(tags, args))
+ 1093:         if processor := self._tags2proc.get(tags):
+                   processor(tags, args)
+       
+    1:     def setwriter(self, writer: _Writer | None) -> None:
+               self._writer = writer
+       
+    1:     def setprocessor(self, tags: str | tuple[str, ...], processor: _Processor) -> None:
+               if isinstance(tags, str):
+                   tags = tuple(tags.split(":"))
+               else:
+                   assert isinstance(tags, tuple)
+               self._tags2proc[tags] = processor
+       
+       
+    2: class TagTracerSub:
+    1:     def __init__(self, root: TagTracer, tags: tuple[str, ...]) -> None:
+    5:         self.root = root
+    5:         self.tags = tags
+       
+    1:     def __call__(self, *args: object) -> None:
+ 1093:         self.root._processmessage(self.tags, args)
+       
+    1:     def get(self, name: str) -> TagTracerSub:
+    1:         return self.__class__(self.root, self.tags + (name,))

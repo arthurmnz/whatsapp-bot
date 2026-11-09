@@ -1,0 +1,291 @@
+    1: import asyncio
+    1: import json
+    1: from pathlib import Path
+    1: from unittest.mock import AsyncMock, patch
+       
+    1: import pytest
+    1: from pydantic import ValidationError
+       
+    1: from src.scheduler.config import ScheduledJob, SchedulerConfig, load_scheduler_config
+    1: from src.scheduler.service import (
+           CronScheduler,
+           dispatch_job,
+           pick_random_media,
+           render_message,
+       )
+       
+       
+       # ─── 1. Testes de validação de expressão Cron ─────────────────────────────────
+       
+    1: def test_scheduled_job_valid_cron():
+    2:     job = ScheduledJob(
+    1:         id="test_job",
+    1:         name="Job de Teste",
+    1:         enabled=True,
+    1:         cron="0 9 * * 1-5",
+    1:         recipients=["5511999999999"],
+    1:         message="Olá mundo!",
+           )
+    1:     assert job.cron == "0 9 * * 1-5"
+       
+       
+    3: @pytest.mark.parametrize(
+    1:     "invalid_cron",
+    1:     [
+               "invalid_cron",
+               "99 * * * *",       # minuto inválido
+               "* * * *",          # crontab requer 5 campos
+               "* * * * * * *",    # campos em excesso
+           ],
+       )
+    2: def test_scheduled_job_invalid_cron(invalid_cron):
+    8:     with pytest.raises(ValidationError):
+    8:         ScheduledJob(
+    4:             id="test_job",
+    4:             name="Job de Teste",
+    4:             enabled=True,
+    4:             cron=invalid_cron,
+    4:             recipients=["5511999999999"],
+    4:             message="Olá!",
+               )
+       
+       
+       # ─── 2. Testes de validação e sanitização de Destinatários ────────────────────
+       
+    1: def test_scheduled_job_recipients_sanitization():
+    2:     job = ScheduledJob(
+    1:         id="test_job",
+    1:         name="Job de Teste",
+    1:         cron="0 9 * * *",
+    1:         recipients=[
+                   "5511999999999",
+                   "+5511888888888",
+                   "5511777777777@s.whatsapp.net",
+                   "120363000000000000@g.us",
+               ],
+    1:         message="Teste",
+           )
+    1:     assert job.recipients == [
+               "5511999999999@s.whatsapp.net",
+               "5511888888888@s.whatsapp.net",
+               "5511777777777@s.whatsapp.net",
+               "120363000000000000@g.us",
+           ]
+       
+       
+    3: @pytest.mark.parametrize(
+    1:     "invalid_recipient",
+    1:     [
+               "destinatario_invalido",
+               "contato@dominio.com",
+               "123",              # menos de 8 dígitos
+               "abc12345678",      # letras misturadas no número
+           ],
+       )
+    2: def test_scheduled_job_invalid_recipients(invalid_recipient):
+    8:     with pytest.raises(ValidationError):
+    8:         ScheduledJob(
+    4:             id="test_job",
+    4:             name="Job de Teste",
+    4:             cron="0 9 * * *",
+    4:             recipients=[invalid_recipient],
+    4:             message="Teste",
+               )
+       
+       
+    1: def test_scheduled_job_empty_recipients():
+    2:     with pytest.raises(ValidationError):
+    2:         ScheduledJob(
+    1:             id="test_job",
+    1:             name="Job de Teste",
+    1:             cron="0 9 * * *",
+    1:             recipients=[],
+    1:             message="Teste",
+               )
+       
+       
+       # ─── 3. Testes de Carregamento da Configuração ────────────────────────────────
+       
+    1: def test_load_scheduler_config_existing_file():
+    1:     config = load_scheduler_config("config/scheduled_messages.json")
+    1:     assert config.timezone == "America/Sao_Paulo"
+    1:     assert len(config.jobs) >= 1
+    2:     assert any(j.id for j in config.jobs)
+       
+       
+    3: def test_load_scheduler_config_fallback_non_existent(tmp_path: Path):
+    1:     non_existent = tmp_path / "nao_existe.json"
+    1:     config = load_scheduler_config(non_existent)
+    1:     assert config.jobs == []
+    1:     assert isinstance(config.timezone, str)
+       
+       
+    3: def test_load_scheduler_config_invalid_json(tmp_path: Path):
+    1:     invalid_file = tmp_path / "broken.json"
+    1:     invalid_file.write_text("{ json invalido...", encoding="utf-8")
+    2:     with pytest.raises(Exception):
+    1:         load_scheduler_config(invalid_file)
+       
+       
+       # ─── 4. Testes de Renderização de Mensagens e Variáveis ───────────────────────
+       
+    1: def test_render_message_interpolation():
+    1:     template = "Olá! Hoje é {dia_semana}, dia {data} e agora são {hora}."
+    1:     rendered = render_message(template, timezone="America/Sao_Paulo")
+       
+    1:     assert "{dia_semana}" not in rendered
+    1:     assert "{data}" not in rendered
+    1:     assert "{hora}" not in rendered
+    1:     import re
+    1:     assert re.search(r"\d{2}/\d{2}/\d{4}", rendered) is not None
+    1:     assert re.search(r"\d{2}:\d{2}", rendered) is not None
+       
+       
+    1: def test_render_message_with_arbitrary_braces():
+    1:     template = "Mensagem normal com {chave_desconhecida} e {'json': true}."
+    1:     rendered = render_message(template, timezone="America/Sao_Paulo")
+    1:     assert rendered == template
+       
+       
+       # ─── 5. Testes de Busca e Sorteio de Mídias (pick_random_media) ───────────────
+       
+    3: def test_pick_random_media_non_existent_folder(tmp_path: Path):
+    1:     assert pick_random_media("job_sem_pasta", config_dir=tmp_path) is None
+       
+       
+    3: def test_pick_random_media_empty_or_only_gitkeep(tmp_path: Path):
+    1:     job_dir = tmp_path / "lembrete_teste"
+    1:     job_dir.mkdir(parents=True)
+    1:     (job_dir / ".gitkeep").write_text("", encoding="utf-8")
+    1:     (job_dir / ".hidden_file").write_text("dummy", encoding="utf-8")
+    1:     (job_dir / "arquivo_nao_suportado.txt").write_text("dummy", encoding="utf-8")
+       
+    1:     assert pick_random_media("lembrete_teste", config_dir=tmp_path) is None
+       
+       
+    3: def test_pick_random_media_selects_valid_media(tmp_path: Path):
+    1:     job_dir = tmp_path / "lembrete_teste"
+    1:     job_dir.mkdir(parents=True)
+    1:     (job_dir / ".gitkeep").write_text("", encoding="utf-8")
+    1:     gif_file = job_dir / "animacao.gif"
+    1:     gif_file.write_bytes(b"GIF89a_fake_content")
+    1:     mp4_file = job_dir / "video.mp4"
+    1:     mp4_file.write_bytes(b"fake_mp4_bytes")
+       
+    1:     chosen = pick_random_media("lembrete_teste", config_dir=tmp_path)
+    1:     assert chosen is not None
+    1:     assert chosen in (gif_file, mp4_file)
+       
+       
+       # ─── 6. Testes de Despacho (dispatch_job) com e sem Mídia ─────────────────────
+       
+    2: @pytest.mark.asyncio
+    4: async def test_dispatch_job_success_text_only(tmp_path: Path):
+    2:     job = ScheduledJob(
+    1:         id="job_text_only",
+    1:         name="Teste Dispatch Texto",
+    1:         cron="0 9 * * *",
+    1:         recipients=["5511999999999", "5511888888888"],
+    1:         message="Mensagem teste às {hora}",
+    1:         delay_seconds=0.01,
+           )
+       
+    2:     with patch("src.scheduler.service.send_text", new_callable=AsyncMock) as mock_send_text:
+    1:         await dispatch_job(job, config_dir=tmp_path)
+    1:         assert mock_send_text.call_count == 2
+    3:         calls = [c.kwargs for c in mock_send_text.call_args_list]
+    1:         assert calls[0]["to"] == "5511999999999@s.whatsapp.net"
+    1:         assert calls[1]["to"] == "5511888888888@s.whatsapp.net"
+       
+       
+    2: @pytest.mark.asyncio
+    4: async def test_dispatch_job_with_media_success(tmp_path: Path):
+    1:     job_dir = tmp_path / "job_com_midia"
+    1:     job_dir.mkdir(parents=True)
+    1:     gif_path = job_dir / "bom_dia.gif"
+    1:     gif_path.write_bytes(b"GIF89a_fake_content")
+       
+    2:     job = ScheduledJob(
+    1:         id="job_com_midia",
+    1:         name="Teste Dispatch Mídia",
+    1:         cron="0 9 * * *",
+    1:         recipients=["5511999999999"],
+    1:         message="Legenda teste",
+    1:         delay_seconds=0.0,
+           )
+       
+    2:     with patch("src.scheduler.service.send_media", new_callable=AsyncMock) as mock_send_media:
+    1:         await dispatch_job(job, config_dir=tmp_path)
+    1:         assert mock_send_media.call_count == 1
+    1:         kwargs = mock_send_media.call_args.kwargs
+    1:         assert kwargs["to"] == "5511999999999@s.whatsapp.net"
+    1:         assert kwargs["media_path_or_url"] == gif_path
+    1:         assert kwargs["caption"] == "Legenda teste"
+       
+       
+    2: @pytest.mark.asyncio
+    4: async def test_dispatch_job_media_failure_fallback_to_text(tmp_path: Path):
+    1:     job_dir = tmp_path / "job_fallback"
+    1:     job_dir.mkdir(parents=True)
+    1:     (job_dir / "animacao.gif").write_bytes(b"GIF89a_fake_content")
+       
+    2:     job = ScheduledJob(
+    1:         id="job_fallback",
+    1:         name="Teste Fallback",
+    1:         cron="0 9 * * *",
+    1:         recipients=["5511999999999"],
+    1:         message="Mensagem de fallback",
+    1:         delay_seconds=0.0,
+           )
+       
+    3:     with patch(
+    1:         "src.scheduler.service.send_media",
+    1:         side_effect=Exception("Erro simulado de envio de mídia"),
+    2:     ) as mock_media, patch("src.scheduler.service.send_text", new_callable=AsyncMock) as mock_text:
+    1:         await dispatch_job(job, config_dir=tmp_path)
+    1:         assert mock_media.call_count == 1
+    1:         assert mock_text.call_count == 1
+    1:         assert mock_text.call_args.kwargs["to"] == "5511999999999@s.whatsapp.net"
+    1:         assert mock_text.call_args.kwargs["text"] == "Mensagem de fallback"
+       
+       
+       # ─── 7. Testes do CronScheduler (Jobs ativos vs inativos) ──────────────────────
+       
+    2: @pytest.mark.asyncio
+    2: async def test_cron_scheduler_register_jobs():
+    1:     scheduler = CronScheduler()
+    2:     config = SchedulerConfig(
+    1:         timezone="America/Sao_Paulo",
+    1:         jobs=[
+    2:             ScheduledJob(
+    1:                 id="ativo",
+    1:                 name="Job Ativo",
+    1:                 enabled=True,
+    1:                 cron="0 8 * * *",
+    1:                 recipients=["5511999999999"],
+    1:                 message="Ativo",
+                   ),
+    2:             ScheduledJob(
+    1:                 id="inativo",
+    1:                 name="Job Inativo",
+    1:                 enabled=False,
+    1:                 cron="0 10 * * *",
+    1:                 recipients=["5511999999999"],
+    1:                 message="Inativo",
+                   ),
+               ],
+           )
+       
+    1:     scheduler.start()
+    1:     scheduler.register_jobs(config)
+       
+    1:     jobs = scheduler._scheduler.get_jobs()
+    2:     job_ids = [j.id for j in jobs]
+       
+    1:     assert "ativo" in job_ids
+    1:     assert "inativo" not in job_ids
+    1:     assert scheduler.is_running is True
+       
+    1:     scheduler.shutdown()
+    1:     await asyncio.sleep(0.01)
+    1:     assert scheduler.is_running is False

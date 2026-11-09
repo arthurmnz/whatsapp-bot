@@ -1,0 +1,16 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from typing import List, Optional
+       
+    1: from .run import Run
+    1: from .._models import BaseModel
+       
+    1: __all__ = ["TraceListRunsResponse"]
+       
+       
+    8: class TraceListRunsResponse(BaseModel):
+    3:     items: Optional[List[Run]] = None
+    1:     """
+           `items` lists runs in the trace for the requested time window, in `start_time`
+           order.
+           """

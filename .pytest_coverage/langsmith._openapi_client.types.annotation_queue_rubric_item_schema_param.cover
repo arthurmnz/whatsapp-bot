@@ -1,0 +1,28 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from __future__ import annotations
+       
+    1: from typing import Dict, Union, Optional
+    1: from typing_extensions import Required, TypeAlias, TypedDict
+       
+    1: from .missing_param import MissingParam
+       
+    1: __all__ = ["AnnotationQueueRubricItemSchemaParam", "RegexValidator"]
+       
+    1: RegexValidator: TypeAlias = Union[str, MissingParam]
+       
+       
+    2: class AnnotationQueueRubricItemSchemaParam(TypedDict, total=False):
+    1:     feedback_key: Required[str]
+       
+    1:     description: Optional[str]
+       
+    1:     is_assertion: Optional[bool]
+       
+    1:     is_required: Optional[bool]
+       
+    1:     regex_validator: Optional[RegexValidator]
+       
+    1:     score_descriptions: Optional[Dict[str, str]]
+       
+    1:     value_descriptions: Optional[Dict[str, str]]

@@ -1,0 +1,75 @@
+    1: import asyncio
+    1: from functools import partial, wraps
+       
+    1: from apscheduler.schedulers import SchedulerNotRunningError
+    1: from apscheduler.schedulers.base import BaseScheduler
+    1: from apscheduler.util import maybe_ref
+       
+       
+    1: def run_in_event_loop(func):
+    4:     @wraps(func)
+    4:     def wrapper(self, *args, **kwargs):
+    3:         wrapped = partial(func, self, *args, **kwargs)
+    3:         self._eventloop.call_soon_threadsafe(wrapped)
+       
+    2:     return wrapper
+       
+       
+    2: class AsyncIOScheduler(BaseScheduler):
+    1:     """
+           A scheduler that runs on an asyncio (:pep:`3156`) event loop.
+       
+           The default executor can run jobs based on native coroutines (``async def``).
+       
+           Extra options:
+       
+           ============== =============================================================
+           ``event_loop`` AsyncIO event loop to use (defaults to the global event loop)
+           ============== =============================================================
+           """
+       
+    1:     _eventloop = None
+    1:     _timeout = None
+       
+    1:     def start(self, paused=False):
+    1:         if not self._eventloop or self._eventloop.is_closed():
+    1:             self._eventloop = asyncio.get_running_loop()
+       
+    1:         super().start(paused)
+       
+    2:     @run_in_event_loop
+    2:     def _shutdown(self, wait=True):
+    1:         super().shutdown(wait)
+    1:         self._stop_timer()
+    1:         self._eventloop = None
+       
+    1:     def shutdown(self, wait=True):
+    1:         if not self.running:
+                   raise SchedulerNotRunningError
+       
+    1:         self._shutdown(wait)
+       
+    1:     def _configure(self, config):
+    1:         self._eventloop = maybe_ref(config.pop("event_loop", None))
+    1:         super()._configure(config)
+       
+    1:     def _start_timer(self, wait_seconds):
+    2:         self._stop_timer()
+    2:         if wait_seconds is not None:
+    2:             self._timeout = self._eventloop.call_later(wait_seconds, self.wakeup)
+       
+    1:     def _stop_timer(self):
+    5:         if self._timeout:
+    2:             self._timeout.cancel()
+    2:             del self._timeout
+       
+    2:     @run_in_event_loop
+    2:     def wakeup(self):
+    2:         self._stop_timer()
+    2:         wait_seconds = self._process_jobs()
+    2:         self._start_timer(wait_seconds)
+       
+    1:     def _create_default_executor(self):
+    1:         from apscheduler.executors.asyncio import AsyncIOExecutor
+       
+    1:         return AsyncIOExecutor()

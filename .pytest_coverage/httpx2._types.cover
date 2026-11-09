@@ -1,0 +1,86 @@
+    1: """
+       Type definitions for type checking purposes.
+       """
+       
+    1: from collections.abc import AsyncIterable, AsyncIterator, Callable, Iterable, Iterator, Mapping, Sequence
+    1: from http.cookiejar import CookieJar
+    1: from typing import IO, TYPE_CHECKING, Any, Union
+       
+    1: if TYPE_CHECKING:
+           from ._auth import Auth  # noqa: F401
+           from ._config import Proxy, Timeout  # noqa: F401
+           from ._models import Cookies, Headers, Request  # noqa: F401
+           from ._urls import URL, QueryParams  # noqa: F401
+       
+       
+    1: PrimitiveData = str | int | float | bool | None
+       
+    1: URLTypes = Union["URL", str]
+       
+    2: QueryParamTypes = Union[
+    2:     "QueryParams",
+    1:     Mapping[str, PrimitiveData | Sequence[PrimitiveData]],
+    1:     list[tuple[str, PrimitiveData]],
+    1:     tuple[tuple[str, PrimitiveData], ...],
+    1:     str,
+    1:     bytes,
+       ]
+       
+    2: HeaderTypes = Union[
+    2:     "Headers",
+    1:     Mapping[str, str],
+    1:     Mapping[bytes, bytes],
+    1:     Sequence[tuple[str, str]],
+    1:     Sequence[tuple[bytes, bytes]],
+       ]
+       
+    1: CookieTypes = Union["Cookies", CookieJar, dict[str, str], list[tuple[str, str]]]
+       
+    1: TimeoutTypes = Union[float | None, tuple[float | None, float | None, float | None, float | None], "Timeout"]
+    1: ProxyTypes = Union["URL", str, "Proxy"]
+    1: CertTypes = str | tuple[str, str] | tuple[str, str, str]
+       
+    1: AuthTypes = Union[tuple[str | bytes, str | bytes], Callable[["Request"], "Request"], "Auth"]
+       
+    1: RequestContent = str | bytes | Iterable[bytes] | AsyncIterable[bytes]
+    1: ResponseContent = str | bytes | Iterable[bytes] | AsyncIterable[bytes]
+    1: ResponseExtensions = Mapping[str, Any]
+       
+    1: RequestData = Mapping[str, Any]
+       
+    1: FileContent = IO[bytes] | bytes | str
+    1: FileTypes = (
+           # # file (or bytes)
+    4:     FileContent
+           # # (filename, file (or bytes))
+    1:     | tuple[str | None, FileContent]
+           # # (filename, file (or bytes), content_type)
+    1:     | tuple[str | None, FileContent, str | None]
+    1:     | tuple[str | None, FileContent, str | None, Mapping[str, str]]
+       )
+    1: RequestFiles = Mapping[str, FileTypes] | Sequence[tuple[str, FileTypes]]
+       
+    1: RequestExtensions = Mapping[str, Any]
+       
+    1: __all__ = ["AsyncByteStream", "SyncByteStream"]
+       
+       
+    2: class SyncByteStream:
+    1:     def __iter__(self) -> Iterator[bytes]:
+               raise NotImplementedError("The '__iter__' method must be implemented.")  # pragma: no cover
+               yield b""  # pragma: no cover
+       
+    1:     def close(self) -> None:
+               """
+               Subclasses can override this method to release any network resources
+               after a request/response cycle is complete.
+               """
+       
+       
+    2: class AsyncByteStream:
+    1:     async def __aiter__(self) -> AsyncIterator[bytes]:
+               raise NotImplementedError("The '__aiter__' method must be implemented.")  # pragma: no cover
+               yield b""  # pragma: no cover
+       
+    1:     async def aclose(self) -> None:
+               pass

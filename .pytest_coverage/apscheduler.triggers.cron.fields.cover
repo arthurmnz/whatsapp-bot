@@ -1,0 +1,149 @@
+    1: """Fields represent CronTrigger options which map to :class:`~datetime.datetime` fields."""
+       
+    1: __all__ = (
+           "DEFAULT_VALUES",
+           "MAX_VALUES",
+           "MIN_VALUES",
+           "BaseField",
+           "DayOfMonthField",
+           "DayOfWeekField",
+           "WeekField",
+       )
+       
+    1: import re
+    1: from calendar import monthrange
+       
+    1: from apscheduler.triggers.cron.expressions import (
+           AllExpression,
+           LastDayOfMonthExpression,
+           MonthRangeExpression,
+           RangeExpression,
+           WeekdayPositionExpression,
+           WeekdayRangeExpression,
+       )
+       
+    1: MIN_VALUES = {
+    1:     "year": 1970,
+    1:     "month": 1,
+    1:     "day": 1,
+    1:     "week": 1,
+    1:     "day_of_week": 0,
+    1:     "hour": 0,
+    1:     "minute": 0,
+    1:     "second": 0,
+       }
+    1: MAX_VALUES = {
+    1:     "year": 9999,
+    1:     "month": 12,
+    1:     "day": 31,
+    1:     "week": 53,
+    1:     "day_of_week": 6,
+    1:     "hour": 23,
+    1:     "minute": 59,
+    1:     "second": 59,
+       }
+    1: DEFAULT_VALUES = {
+    1:     "year": "*",
+    1:     "month": 1,
+    1:     "day": 1,
+    1:     "week": "*",
+    1:     "day_of_week": "*",
+    1:     "hour": 0,
+    1:     "minute": 0,
+    1:     "second": 0,
+       }
+    1: SEPARATOR = re.compile(" *, *")
+       
+       
+    2: class BaseField:
+    1:     REAL = True
+    1:     COMPILERS = [AllExpression, RangeExpression]
+       
+    1:     def __init__(self, name, exprs, is_default=False):
+  159:         self.name = name
+  159:         self.is_default = is_default
+  159:         self.compile_expressions(exprs)
+       
+    1:     def get_min(self, dateval):
+   37:         return MIN_VALUES[self.name]
+       
+    1:     def get_max(self, dateval):
+   24:         return MAX_VALUES[self.name]
+       
+    1:     def get_value(self, dateval):
+   53:         return getattr(dateval, self.name)
+       
+    1:     def get_next_value(self, dateval):
+   28:         smallest = None
+   56:         for expr in self.expressions:
+   28:             value = expr.get_next_value(dateval, self)
+   28:             if smallest is None or (value is not None and value < smallest):
+   28:                 smallest = value
+       
+   28:         return smallest
+       
+    1:     def compile_expressions(self, exprs):
+  159:         self.expressions = []
+       
+               # Split a comma-separated expression list, if any
+  317:         for expr in SEPARATOR.split(str(exprs).strip()):
+  159:             self.compile_expression(expr)
+       
+    1:     def compile_expression(self, expr):
+  218:         for compiler in self.COMPILERS:
+  218:             match = compiler.value_re.match(expr)
+  218:             if match:
+  159:                 compiled_expr = compiler(**match.groupdict())
+       
+  159:                 try:
+  159:                     compiled_expr.validate_range(self.name)
+    1:                 except ValueError as e:
+    3:                     raise ValueError(
+    1:                         f"Error validating expression {expr!r}: {e}"
+    1:                     ) from None
+       
+  158:                 self.expressions.append(compiled_expr)
+  158:                 return
+       
+               raise ValueError(f'Unrecognized expression "{expr}" for field "{self.name}"')
+       
+    1:     def __eq__(self, other):
+               return (
+                   isinstance(self, self.__class__) and self.expressions == other.expressions
+               )
+       
+    1:     def __str__(self):
+               expr_strings = (str(e) for e in self.expressions)
+               return ",".join(expr_strings)
+       
+    1:     def __repr__(self):
+               return f"{self.__class__.__name__}('{self.name}', '{self}')"
+       
+       
+    2: class WeekField(BaseField):
+    1:     REAL = False
+       
+    1:     def get_value(self, dateval):
+    8:         return dateval.isocalendar()[1]
+       
+       
+    2: class DayOfMonthField(BaseField):
+    2:     COMPILERS = BaseField.COMPILERS + [
+    1:         WeekdayPositionExpression,
+    1:         LastDayOfMonthExpression,
+           ]
+       
+    1:     def get_max(self, dateval):
+    5:         return monthrange(dateval.year, dateval.month)[1]
+       
+       
+    2: class DayOfWeekField(BaseField):
+    1:     REAL = False
+    1:     COMPILERS = BaseField.COMPILERS + [WeekdayRangeExpression]
+       
+    1:     def get_value(self, dateval):
+    8:         return dateval.weekday()
+       
+       
+    2: class MonthField(BaseField):
+    1:     COMPILERS = BaseField.COMPILERS + [MonthRangeExpression]

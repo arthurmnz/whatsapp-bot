@@ -1,0 +1,122 @@
+       # mypy: allow-untyped-defs
+    1: from __future__ import annotations
+       
+    1: from collections.abc import Generator
+    1: from contextlib import contextmanager
+    1: from typing import Literal
+    1: import warnings
+       
+    1: from _pytest.config import Config
+    1: from _pytest.config import parse_warning_filter
+    1: from _pytest.main import Session
+    1: from _pytest.nodes import Item
+    1: from _pytest.terminal import TerminalReporter
+    1: from _pytest.tracemalloc import tracemalloc_message
+    1: import pytest
+       
+       
+    2: @contextmanager
+    3: def catch_warnings_for_item(
+           config: Config,
+           ihook,
+           when: Literal["config", "collect", "runtest"],
+           item: Item | None,
+           *,
+    1:     record: bool = True,
+       ) -> Generator[None]:
+           """Context manager that catches warnings generated in the contained execution block.
+       
+           ``item`` can be None if we are not in the context of an item execution.
+       
+           Each warning captured triggers the ``pytest_warning_recorded`` hook.
+           """
+   86:     with config._catch_configured_warnings(record=record) as log:
+               # apply filters from "filterwarnings" marks
+   43:         nodeid = "" if item is None else item.nodeid
+   43:         if item is not None:
+   39:             for mark in item.iter_markers(name="filterwarnings"):
+                       for arg in mark.args:
+                           warnings.filterwarnings(*parse_warning_filter(arg, escape=False))
+       
+   43:         try:
+   43:             yield
+               finally:
+   43:             if record:
+                       # mypy can't infer that record=True means log is not None; help it.
+   43:                 assert log is not None
+       
+   43:                 for warning_message in log:
+                           ihook.pytest_warning_recorded.call_historic(
+                               kwargs=dict(
+                                   warning_message=warning_message,
+                                   nodeid=nodeid,
+                                   when=when,
+                                   location=None,
+                               )
+                           )
+       
+       
+    1: def warning_record_to_str(warning_message: warnings.WarningMessage) -> str:
+           """Convert a warnings.WarningMessage to a string."""
+   39:     return warnings.formatwarning(
+   13:         str(warning_message.message),
+   13:         warning_message.category,
+   13:         warning_message.filename,
+   13:         warning_message.lineno,
+   13:         warning_message.line,
+   13:     ) + tracemalloc_message(warning_message.source)
+       
+       
+    2: @pytest.hookimpl(wrapper=True, tryfirst=True)
+    2: def pytest_runtest_protocol(item: Item) -> Generator[None, object, object]:
+  117:     with catch_warnings_for_item(
+   39:         config=item.config, ihook=item.ihook, when="runtest", item=item
+           ):
+   39:         return (yield)
+       
+       
+    2: @pytest.hookimpl(wrapper=True, tryfirst=True)
+    2: def pytest_collection(session: Session) -> Generator[None, object, object]:
+    1:     config = session.config
+    3:     with catch_warnings_for_item(
+    1:         config=config, ihook=config.hook, when="collect", item=None
+           ):
+    1:         return (yield)
+       
+       
+    2: @pytest.hookimpl(wrapper=True)
+    2: def pytest_terminal_summary(
+           terminalreporter: TerminalReporter,
+       ) -> Generator[None]:
+    1:     config = terminalreporter.config
+    3:     with catch_warnings_for_item(
+    1:         config=config, ihook=config.hook, when="config", item=None
+           ):
+    1:         return (yield)
+       
+       
+    2: @pytest.hookimpl(wrapper=True)
+    2: def pytest_sessionfinish(session: Session) -> Generator[None]:
+    1:     config = session.config
+    3:     with catch_warnings_for_item(
+    1:         config=config, ihook=config.hook, when="config", item=None
+           ):
+    1:         return (yield)
+       
+       
+    2: @pytest.hookimpl(wrapper=True)
+    2: def pytest_load_initial_conftests(
+           early_config: Config,
+       ) -> Generator[None]:
+    3:     with catch_warnings_for_item(
+    1:         config=early_config, ihook=early_config.hook, when="config", item=None
+           ):
+    1:         return (yield)
+       
+       
+    1: def pytest_configure(config: Config) -> None:
+    2:     config.addinivalue_line(
+    1:         "markers",
+    1:         "filterwarnings(warning): add a warning filter to the given test. "
+               "see https://docs.pytest.org/en/stable/how-to/capture-warnings.html#pytest-mark-filterwarnings ",
+           )

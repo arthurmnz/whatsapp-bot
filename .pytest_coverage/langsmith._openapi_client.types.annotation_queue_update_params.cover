@@ -1,0 +1,38 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from __future__ import annotations
+       
+    1: from typing import Dict, Union, Iterable, Optional
+    1: from typing_extensions import Literal, TypeAlias, TypedDict
+       
+    1: from .missing_param import MissingParam
+    1: from .annotation_queue_rubric_item_schema_param import AnnotationQueueRubricItemSchemaParam
+       
+    1: __all__ = ["AnnotationQueueUpdateParams", "Metadata", "NumReviewersPerItem"]
+       
+       
+    2: class AnnotationQueueUpdateParams(TypedDict, total=False):
+    1:     default_dataset: Optional[str]
+       
+    1:     description: Optional[str]
+       
+    1:     enable_reservations: bool
+       
+    1:     metadata: Optional[Metadata]
+       
+    1:     name: Optional[str]
+       
+    1:     num_reviewers_per_item: Optional[NumReviewersPerItem]
+       
+    1:     reservation_minutes: Optional[int]
+       
+    1:     reviewer_access_mode: Optional[Literal["any", "assigned"]]
+       
+    1:     rubric_instructions: Optional[str]
+       
+    1:     rubric_items: Optional[Iterable[AnnotationQueueRubricItemSchemaParam]]
+       
+       
+    1: Metadata: TypeAlias = Union[Dict[str, object], MissingParam]
+       
+    1: NumReviewersPerItem: TypeAlias = Union[int, MissingParam]

@@ -1,0 +1,27 @@
+{
+  "timezone": "America/Sao_Paulo",
+  "jobs": [
+    {
+      "id": "daily_greeting_arthur",
+      "name": "Mensagem Diária de Boas-Vindas",
+      "enabled": true,
+      "cron": "30 18 * * *",
+      "recipients": [
+        "557499298992"
+      ],
+      "message": "Boa noite, Mestre! 🤖 \n\nRegistre seus gastos pendentes de hoje. \nEvite surpresas, o imperio aumentou os tributos.  \n\nBoa noite e bom descanso! 🌌💤",
+      "delay_seconds": 0.5
+    },
+    {
+      "id": "daily_greeting_ev",
+      "name": "Mensagem Diária de Boas-Vindas",
+      "enabled": true,
+      "cron": "30 18 * * *",
+      "recipients": [
+        "557499135776"
+      ],
+      "message": "Boa noite, Vossa Alteza! 🤖 \n\nRegistre seus gastos pendentes de hoje. \nEvite surpresas, o imperio aumentou os tributos.  \n\nBoa noite e bom descanso! 🌌💤",
+      "delay_seconds": 0.5
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from __future__ import annotations
+       
+    1: from typing_extensions import Required, TypedDict
+       
+    1: from .._types import SequenceNotStr
+       
+    1: __all__ = ["AnnotationQueuePopulateParams"]
+       
+       
+    2: class AnnotationQueuePopulateParams(TypedDict, total=False):
+    1:     queue_id: Required[str]
+       
+    1:     session_ids: Required[SequenceNotStr[str]]
+       
+    1:     extend_trace_retention: bool

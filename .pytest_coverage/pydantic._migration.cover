@@ -1,0 +1,316 @@
+    1: import sys
+    1: from typing import Any, Callable
+       
+    1: from pydantic.warnings import PydanticDeprecatedSince20
+       
+    1: from .version import version_short
+       
+    1: MOVED_IN_V2 = {
+    1:     'pydantic.utils:version_info': 'pydantic.version:version_info',
+    1:     'pydantic.error_wrappers:ValidationError': 'pydantic:ValidationError',
+    1:     'pydantic.utils:to_camel': 'pydantic.alias_generators:to_pascal',
+    1:     'pydantic.utils:to_lower_camel': 'pydantic.alias_generators:to_camel',
+    1:     'pydantic:PyObject': 'pydantic.types:ImportString',
+    1:     'pydantic.types:PyObject': 'pydantic.types:ImportString',
+    1:     'pydantic.generics:GenericModel': 'pydantic.BaseModel',
+       }
+       
+    1: DEPRECATED_MOVED_IN_V2 = {
+    1:     'pydantic.tools:schema_of': 'pydantic.deprecated.tools:schema_of',
+    1:     'pydantic.tools:parse_obj_as': 'pydantic.deprecated.tools:parse_obj_as',
+    1:     'pydantic.tools:schema_json_of': 'pydantic.deprecated.tools:schema_json_of',
+    1:     'pydantic.json:pydantic_encoder': 'pydantic.deprecated.json:pydantic_encoder',
+    1:     'pydantic:validate_arguments': 'pydantic.deprecated.decorator:validate_arguments',
+    1:     'pydantic.json:custom_pydantic_encoder': 'pydantic.deprecated.json:custom_pydantic_encoder',
+    1:     'pydantic.json:timedelta_isoformat': 'pydantic.deprecated.json:timedelta_isoformat',
+    1:     'pydantic.decorator:validate_arguments': 'pydantic.deprecated.decorator:validate_arguments',
+    1:     'pydantic.class_validators:validator': 'pydantic.deprecated.class_validators:validator',
+    1:     'pydantic.class_validators:root_validator': 'pydantic.deprecated.class_validators:root_validator',
+    1:     'pydantic.config:BaseConfig': 'pydantic.deprecated.config:BaseConfig',
+    1:     'pydantic.config:Extra': 'pydantic.deprecated.config:Extra',
+       }
+       
+    2: REDIRECT_TO_V1 = {
+   11:     f'pydantic.utils:{obj}': f'pydantic.v1.utils:{obj}'
+   13:     for obj in (
+               'deep_update',
+               'GetterDict',
+               'lenient_issubclass',
+               'lenient_isinstance',
+               'is_valid_field',
+               'update_not_none',
+               'import_string',
+               'Representation',
+               'ROOT_KEY',
+               'smart_deepcopy',
+               'sequence_like',
+           )
+       }
+       
+       
+  197: REMOVED_IN_V2 = {
+    1:     'pydantic:ConstrainedBytes',
+    1:     'pydantic:ConstrainedDate',
+    1:     'pydantic:ConstrainedDecimal',
+    1:     'pydantic:ConstrainedFloat',
+    1:     'pydantic:ConstrainedFrozenSet',
+    1:     'pydantic:ConstrainedInt',
+    1:     'pydantic:ConstrainedList',
+    1:     'pydantic:ConstrainedSet',
+    1:     'pydantic:ConstrainedStr',
+    1:     'pydantic:JsonWrapper',
+    1:     'pydantic:NoneBytes',
+    1:     'pydantic:NoneStr',
+    1:     'pydantic:NoneStrBytes',
+    1:     'pydantic:Protocol',
+    1:     'pydantic:Required',
+    1:     'pydantic:StrBytes',
+    1:     'pydantic:compiled',
+    1:     'pydantic.config:get_config',
+    1:     'pydantic.config:inherit_config',
+    1:     'pydantic.config:prepare_config',
+    1:     'pydantic:create_model_from_namedtuple',
+    1:     'pydantic:create_model_from_typeddict',
+    1:     'pydantic.dataclasses:create_pydantic_model_from_dataclass',
+    1:     'pydantic.dataclasses:make_dataclass_validator',
+    1:     'pydantic.dataclasses:set_validation',
+    1:     'pydantic.datetime_parse:parse_date',
+    1:     'pydantic.datetime_parse:parse_time',
+    1:     'pydantic.datetime_parse:parse_datetime',
+    1:     'pydantic.datetime_parse:parse_duration',
+    1:     'pydantic.error_wrappers:ErrorWrapper',
+    1:     'pydantic.errors:AnyStrMaxLengthError',
+    1:     'pydantic.errors:AnyStrMinLengthError',
+    1:     'pydantic.errors:ArbitraryTypeError',
+    1:     'pydantic.errors:BoolError',
+    1:     'pydantic.errors:BytesError',
+    1:     'pydantic.errors:CallableError',
+    1:     'pydantic.errors:ClassError',
+    1:     'pydantic.errors:ColorError',
+    1:     'pydantic.errors:ConfigError',
+    1:     'pydantic.errors:DataclassTypeError',
+    1:     'pydantic.errors:DateError',
+    1:     'pydantic.errors:DateNotInTheFutureError',
+    1:     'pydantic.errors:DateNotInThePastError',
+    1:     'pydantic.errors:DateTimeError',
+    1:     'pydantic.errors:DecimalError',
+    1:     'pydantic.errors:DecimalIsNotFiniteError',
+    1:     'pydantic.errors:DecimalMaxDigitsError',
+    1:     'pydantic.errors:DecimalMaxPlacesError',
+    1:     'pydantic.errors:DecimalWholeDigitsError',
+    1:     'pydantic.errors:DictError',
+    1:     'pydantic.errors:DurationError',
+    1:     'pydantic.errors:EmailError',
+    1:     'pydantic.errors:EnumError',
+    1:     'pydantic.errors:EnumMemberError',
+    1:     'pydantic.errors:ExtraError',
+    1:     'pydantic.errors:FloatError',
+    1:     'pydantic.errors:FrozenSetError',
+    1:     'pydantic.errors:FrozenSetMaxLengthError',
+    1:     'pydantic.errors:FrozenSetMinLengthError',
+    1:     'pydantic.errors:HashableError',
+    1:     'pydantic.errors:IPv4AddressError',
+    1:     'pydantic.errors:IPv4InterfaceError',
+    1:     'pydantic.errors:IPv4NetworkError',
+    1:     'pydantic.errors:IPv6AddressError',
+    1:     'pydantic.errors:IPv6InterfaceError',
+    1:     'pydantic.errors:IPv6NetworkError',
+    1:     'pydantic.errors:IPvAnyAddressError',
+    1:     'pydantic.errors:IPvAnyInterfaceError',
+    1:     'pydantic.errors:IPvAnyNetworkError',
+    1:     'pydantic.errors:IntEnumError',
+    1:     'pydantic.errors:IntegerError',
+    1:     'pydantic.errors:InvalidByteSize',
+    1:     'pydantic.errors:InvalidByteSizeUnit',
+    1:     'pydantic.errors:InvalidDiscriminator',
+    1:     'pydantic.errors:InvalidLengthForBrand',
+    1:     'pydantic.errors:JsonError',
+    1:     'pydantic.errors:JsonTypeError',
+    1:     'pydantic.errors:ListError',
+    1:     'pydantic.errors:ListMaxLengthError',
+    1:     'pydantic.errors:ListMinLengthError',
+    1:     'pydantic.errors:ListUniqueItemsError',
+    1:     'pydantic.errors:LuhnValidationError',
+    1:     'pydantic.errors:MissingDiscriminator',
+    1:     'pydantic.errors:MissingError',
+    1:     'pydantic.errors:NoneIsAllowedError',
+    1:     'pydantic.errors:NoneIsNotAllowedError',
+    1:     'pydantic.errors:NotDigitError',
+    1:     'pydantic.errors:NotNoneError',
+    1:     'pydantic.errors:NumberNotGeError',
+    1:     'pydantic.errors:NumberNotGtError',
+    1:     'pydantic.errors:NumberNotLeError',
+    1:     'pydantic.errors:NumberNotLtError',
+    1:     'pydantic.errors:NumberNotMultipleError',
+    1:     'pydantic.errors:PathError',
+    1:     'pydantic.errors:PathNotADirectoryError',
+    1:     'pydantic.errors:PathNotAFileError',
+    1:     'pydantic.errors:PathNotExistsError',
+    1:     'pydantic.errors:PatternError',
+    1:     'pydantic.errors:PyObjectError',
+    1:     'pydantic.errors:PydanticTypeError',
+    1:     'pydantic.errors:PydanticValueError',
+    1:     'pydantic.errors:SequenceError',
+    1:     'pydantic.errors:SetError',
+    1:     'pydantic.errors:SetMaxLengthError',
+    1:     'pydantic.errors:SetMinLengthError',
+    1:     'pydantic.errors:StrError',
+    1:     'pydantic.errors:StrRegexError',
+    1:     'pydantic.errors:StrictBoolError',
+    1:     'pydantic.errors:SubclassError',
+    1:     'pydantic.errors:TimeError',
+    1:     'pydantic.errors:TupleError',
+    1:     'pydantic.errors:TupleLengthError',
+    1:     'pydantic.errors:UUIDError',
+    1:     'pydantic.errors:UUIDVersionError',
+    1:     'pydantic.errors:UrlError',
+    1:     'pydantic.errors:UrlExtraError',
+    1:     'pydantic.errors:UrlHostError',
+    1:     'pydantic.errors:UrlHostTldError',
+    1:     'pydantic.errors:UrlPortError',
+    1:     'pydantic.errors:UrlSchemeError',
+    1:     'pydantic.errors:UrlSchemePermittedError',
+    1:     'pydantic.errors:UrlUserInfoError',
+    1:     'pydantic.errors:WrongConstantError',
+    1:     'pydantic.main:validate_model',
+    1:     'pydantic.networks:stricturl',
+    1:     'pydantic:parse_file_as',
+    1:     'pydantic:parse_raw_as',
+    1:     'pydantic:stricturl',
+    1:     'pydantic.tools:parse_file_as',
+    1:     'pydantic.tools:parse_raw_as',
+    1:     'pydantic.types:ConstrainedBytes',
+    1:     'pydantic.types:ConstrainedDate',
+    1:     'pydantic.types:ConstrainedDecimal',
+    1:     'pydantic.types:ConstrainedFloat',
+    1:     'pydantic.types:ConstrainedFrozenSet',
+    1:     'pydantic.types:ConstrainedInt',
+    1:     'pydantic.types:ConstrainedList',
+    1:     'pydantic.types:ConstrainedSet',
+    1:     'pydantic.types:ConstrainedStr',
+    1:     'pydantic.types:JsonWrapper',
+    1:     'pydantic.types:NoneBytes',
+    1:     'pydantic.types:NoneStr',
+    1:     'pydantic.types:NoneStrBytes',
+    1:     'pydantic.types:StrBytes',
+    1:     'pydantic.typing:evaluate_forwardref',
+    1:     'pydantic.typing:AbstractSetIntStr',
+    1:     'pydantic.typing:AnyCallable',
+    1:     'pydantic.typing:AnyClassMethod',
+    1:     'pydantic.typing:CallableGenerator',
+    1:     'pydantic.typing:DictAny',
+    1:     'pydantic.typing:DictIntStrAny',
+    1:     'pydantic.typing:DictStrAny',
+    1:     'pydantic.typing:IntStr',
+    1:     'pydantic.typing:ListStr',
+    1:     'pydantic.typing:MappingIntStrAny',
+    1:     'pydantic.typing:NoArgAnyCallable',
+    1:     'pydantic.typing:NoneType',
+    1:     'pydantic.typing:ReprArgs',
+    1:     'pydantic.typing:SetStr',
+    1:     'pydantic.typing:StrPath',
+    1:     'pydantic.typing:TupleGenerator',
+    1:     'pydantic.typing:WithArgsTypes',
+    1:     'pydantic.typing:all_literal_values',
+    1:     'pydantic.typing:display_as_type',
+    1:     'pydantic.typing:get_all_type_hints',
+    1:     'pydantic.typing:get_args',
+    1:     'pydantic.typing:get_origin',
+    1:     'pydantic.typing:get_sub_types',
+    1:     'pydantic.typing:is_callable_type',
+    1:     'pydantic.typing:is_classvar',
+    1:     'pydantic.typing:is_finalvar',
+    1:     'pydantic.typing:is_literal_type',
+    1:     'pydantic.typing:is_namedtuple',
+    1:     'pydantic.typing:is_new_type',
+    1:     'pydantic.typing:is_none_type',
+    1:     'pydantic.typing:is_typeddict',
+    1:     'pydantic.typing:is_typeddict_special',
+    1:     'pydantic.typing:is_union',
+    1:     'pydantic.typing:new_type_supertype',
+    1:     'pydantic.typing:resolve_annotations',
+    1:     'pydantic.typing:typing_base',
+    1:     'pydantic.typing:update_field_forward_refs',
+    1:     'pydantic.typing:update_model_forward_refs',
+    1:     'pydantic.utils:ClassAttribute',
+    1:     'pydantic.utils:DUNDER_ATTRIBUTES',
+    1:     'pydantic.utils:PyObjectStr',
+    1:     'pydantic.utils:ValueItems',
+    1:     'pydantic.utils:almost_equal_floats',
+    1:     'pydantic.utils:get_discriminator_alias_and_values',
+    1:     'pydantic.utils:get_model',
+    1:     'pydantic.utils:get_unique_discriminator_alias',
+    1:     'pydantic.utils:in_ipython',
+    1:     'pydantic.utils:is_valid_identifier',
+    1:     'pydantic.utils:path_type',
+    1:     'pydantic.utils:validate_field_name',
+    1:     'pydantic:validate_model',
+       }
+       
+       
+    1: def getattr_migration(module: str) -> Callable[[str], Any]:
+           """Implement PEP 562 for objects that were either moved or removed on the migration
+           to V2.
+       
+           Args:
+               module: The module name.
+       
+           Returns:
+               A callable that will raise an error if the object is not found.
+           """
+           # This avoids circular import with errors.py.
+    5:     from .errors import PydanticImportError
+       
+    5:     def wrapper(name: str) -> object:
+               """Raise an error if the object is not found, or warn if it was moved.
+       
+               In case it was moved, it still returns the object.
+       
+               Args:
+                   name: The object name.
+       
+               Returns:
+                   The object.
+               """
+   31:         if name == '__path__':
+   30:             raise AttributeError(f'module {module!r} has no attribute {name!r}')
+       
+    1:         import warnings
+       
+    1:         from ._internal._validators import import_string
+       
+    1:         import_path = f'{module}:{name}'
+    1:         if import_path in MOVED_IN_V2.keys():
+                   new_location = MOVED_IN_V2[import_path]
+                   warnings.warn(
+                       f'`{import_path}` has been moved to `{new_location}`.',
+                       category=PydanticDeprecatedSince20,
+                       stacklevel=2,
+                   )
+                   return import_string(MOVED_IN_V2[import_path])
+    1:         if import_path in DEPRECATED_MOVED_IN_V2:
+                   # skip the warning here because a deprecation warning will be raised elsewhere
+                   return import_string(DEPRECATED_MOVED_IN_V2[import_path])
+    1:         if import_path in REDIRECT_TO_V1:
+                   new_location = REDIRECT_TO_V1[import_path]
+                   warnings.warn(
+                       f'`{import_path}` has been removed. We are importing from `{new_location}` instead.'
+                       'See the migration guide for more details: https://docs.pydantic.dev/latest/migration/',
+                       category=PydanticDeprecatedSince20,
+                       stacklevel=2,
+                   )
+                   return import_string(REDIRECT_TO_V1[import_path])
+    1:         if import_path == 'pydantic:BaseSettings':
+                   raise PydanticImportError(
+                       '`BaseSettings` has been moved to the `pydantic-settings` package. '
+                       f'See https://docs.pydantic.dev/{version_short()}/migration/#basesettings-has-moved-to-pydantic-settings '
+                       'for more details.'
+                   )
+    1:         if import_path in REMOVED_IN_V2:
+                   raise PydanticImportError(f'`{import_path}` has been removed in V2.')
+    1:         globals: dict[str, Any] = sys.modules[module].__dict__
+    1:         if name in globals:
+                   return globals[name]
+    1:         raise AttributeError(f'module {module!r} has no attribute {name!r}')
+       
+    5:     return wrapper

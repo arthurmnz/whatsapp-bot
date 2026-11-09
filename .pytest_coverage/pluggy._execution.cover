@@ -1,0 +1,197 @@
+    1: """
+       Hook call execution (multicall) machinery.
+       """
+       
+    1: from __future__ import annotations
+       
+    1: from collections.abc import Generator
+    1: from collections.abc import Mapping
+    1: from collections.abc import Sequence
+    1: from typing import cast
+    1: from typing import NoReturn
+    1: from typing import TYPE_CHECKING
+    1: from typing import TypeAlias
+    1: import warnings
+       
+    1: from ._impl import HookImpl
+    1: from ._result import HookCallError
+    1: from ._result import Result
+    1: from ._warnings import PluggyTeardownRaisedWarning
+       
+       
+       # Need to distinguish between old- and new-style hook wrappers.
+       # Wrapping with a tuple is the fastest type-safe way I found to do it.
+    1: Teardown: TypeAlias = Generator[None, object, object]
+       
+       
+    1: def run_old_style_hookwrapper(
+           hook_impl: HookImpl,
+           hook_name: str,
+           args: Sequence[object],
+           kwargs: Mapping[str, object] | None,
+       ) -> Teardown:
+           """
+           backward compatibility wrapper to run a old style hookwrapper as a wrapper
+           """
+  179:     if kwargs is None:
+  179:         res = hook_impl.function(*args)
+           else:
+               res = hook_impl.function(*args, **kwargs)
+  179:     if TYPE_CHECKING:
+               teardown = cast(Teardown, res)
+           else:
+  179:         teardown = res
+  179:     try:
+  179:         next(teardown)
+           except StopIteration:
+               _raise_wrapfail(teardown, "did not yield")
+  179:     try:
+  179:         res = yield
+  179:         result = Result(res, None)
+           except BaseException as exc:
+               result = Result(None, exc)
+  179:     try:
+  179:         teardown.send(result)
+  179:     except StopIteration:
+  179:         pass
+           except BaseException as e:
+               _warn_teardown_exception(hook_name, hook_impl, e)
+               raise
+           else:
+               _raise_wrapfail(teardown, "has second yield")
+           finally:
+  179:         teardown.close()
+  179:     return result.get_result()
+       
+       
+    1: def _raise_wrapfail(
+           wrap_controller: Generator[None, object, object],
+           msg: str,
+       ) -> NoReturn:
+           co = wrap_controller.gi_code  # type: ignore[attr-defined]
+           raise RuntimeError(
+               f"wrap_controller at {co.co_name!r} {co.co_filename}:{co.co_firstlineno} {msg}"
+           )
+       
+       
+    1: def _warn_teardown_exception(
+           hook_name: str, hook_impl: HookImpl, e: BaseException
+       ) -> None:
+           msg = (
+               f"A plugin raised an exception during an old-style hookwrapper teardown.\n"
+               f"Plugin: {hook_impl.plugin_name}, Hook: {hook_name}\n"
+               f"{type(e).__name__}: {e}\n"
+               f"For more information see https://pluggy.readthedocs.io/en/stable/api_reference.html#pluggy.PluggyTeardownRaisedWarning"
+           )
+           warnings.warn(PluggyTeardownRaisedWarning(msg), stacklevel=6)
+       
+       
+    1: def _multicall(
+           hook_name: str,
+           hook_impls: Sequence[HookImpl],
+           caller_kwargs: Mapping[str, object],
+           firstresult: bool,
+       ) -> object | list[object]:
+           """Execute a call into multiple python functions/methods and return the
+           result(s).
+       
+           ``caller_kwargs`` comes from HookCaller.__call__().
+           """
+ 1103:     __tracebackhide__ = True
+ 1103:     results: list[object] = []
+ 1103:     exception = None
+ 1103:     teardowns: list[Teardown] = []
+ 1103:     try:  # run impl and wrapper setup functions in a loop
+ 4192:         for hook_impl in reversed(hook_impls):
+ 3491:             try:
+ 8488:                 args = [caller_kwargs[argname] for argname in hook_impl.argnames]
+ 3491:                 if hook_impl.kwargnames:
+                           kwargs = {
+                               argname: caller_kwargs[argname]
+                               for argname in hook_impl.kwargnames
+                               if argname in caller_kwargs
+                           } or None
+                       else:
+ 3491:                     kwargs = None
+                   except KeyError as e:
+                       raise HookCallError(
+                           f"hook call must provide argument {e.args[0]!r}"
+                       ) from e
+       
+ 3491:             if hook_impl.hookwrapper:
+  358:                 function_gen = run_old_style_hookwrapper(
+  179:                     hook_impl, hook_name, args, kwargs
+                       )
+       
+  179:                 next(function_gen)  # first yield
+  179:                 teardowns.append(function_gen)
+       
+ 3312:             elif hook_impl.wrapper:
+  761:                 if kwargs is None:
+  761:                     res = hook_impl.function(*args)
+                       else:
+                           res = hook_impl.function(*args, **kwargs)
+                       # If this cast is not valid, a type error is raised below,
+                       # which is the desired response.
+  761:                 if TYPE_CHECKING:
+                           function_gen = cast(Generator[None, object, object], res)
+                       else:
+  761:                     function_gen = res
+  761:                 try:
+  761:                     next(function_gen)  # first yield
+                       except StopIteration:
+                           _raise_wrapfail(function_gen, "did not yield")
+  761:                 teardowns.append(function_gen)
+                   else:
+ 2551:                 if kwargs is None:
+ 2551:                     res = hook_impl.function(*args)
+                       else:
+                           res = hook_impl.function(*args, **kwargs)
+ 2551:                 if res is not None:
+  409:                     results.append(res)
+  409:                     if firstresult:  # halt further impl calls
+  402:                         break
+           except BaseException as exc:
+               exception = exc
+           finally:
+ 1103:         if firstresult:  # first result hooks return a single value
+  457:             result = results[0] if results else None
+               else:
+  646:             result = results
+       
+               # run all wrapper post-yield blocks
+ 2043:         for teardown in reversed(teardowns):
+  940:             try:
+  940:                 if exception is not None:
+                           try:
+                               teardown.throw(exception)
+                           except RuntimeError as re:
+                               # StopIteration from generator causes RuntimeError
+                               # even for coroutine usage - see #544
+                               if (
+                                   isinstance(exception, StopIteration)
+                                   and re.__cause__ is exception
+                               ):
+                                   teardown.close()
+                                   continue
+                               else:
+                                   raise
+                       else:
+  940:                     teardown.send(result)
+                       # Following is unreachable for a well behaved hook wrapper.
+                       # Try to force finalizers otherwise postponed till GC action.
+                       # Note: close() may raise if generator handles GeneratorExit.
+                       teardown.close()
+  940:             except StopIteration as si:
+  940:                 result = si.value
+  940:                 exception = None
+  940:                 continue
+                   except BaseException as e:
+                       exception = e
+                       continue
+                   _raise_wrapfail(teardown, "has second yield")
+       
+ 1103:     if exception is not None:
+               raise exception
+           else:
+ 1103:         return result

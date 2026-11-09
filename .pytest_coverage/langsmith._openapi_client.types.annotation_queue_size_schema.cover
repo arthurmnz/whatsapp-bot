@@ -1,0 +1,11 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from .._models import BaseModel
+       
+    1: __all__ = ["AnnotationQueueSizeSchema"]
+       
+       
+    8: class AnnotationQueueSizeSchema(BaseModel):
+    1:     """Size of an Annotation Queue"""
+       
+    2:     size: int

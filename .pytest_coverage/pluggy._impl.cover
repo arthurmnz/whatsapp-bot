@@ -1,0 +1,81 @@
+    1: """
+       Hook implementation representation.
+       """
+       
+    1: from __future__ import annotations
+       
+    1: from collections.abc import Callable
+    1: from collections.abc import Generator
+    1: from typing import Final
+    1: from typing import final
+    1: from typing import TypeAlias
+    1: from typing import TypeVar
+       
+    1: from ._config import HookimplOpts
+    1: from ._decorators import varnames
+    1: from ._result import Result
+       
+       
+    1: _T = TypeVar("_T")
+       
+    1: _Plugin: TypeAlias = object
+    1: _HookImplFunction: TypeAlias = Callable[..., _T | Generator[None, Result[_T], None]]
+       
+       
+    3: @final
+    2: class HookImpl:
+    1:     """A hook implementation in a :class:`HookCaller`."""
+       
+    1:     __slots__ = (
+               "argnames",
+               "function",
+               "hookwrapper",
+               "kwargnames",
+               "optionalhook",
+               "opts",
+               "plugin",
+               "plugin_name",
+               "tryfirst",
+               "trylast",
+               "wrapper",
+           )
+       
+    1:     def __init__(
+               self,
+               plugin: _Plugin,
+               plugin_name: str,
+               function: _HookImplFunction[object],
+               hook_impl_opts: HookimplOpts,
+           ) -> None:
+               """:meta private:"""
+               #: The hook implementation function.
+  193:         self.function: Final = function
+  193:         argnames, kwargnames = varnames(self.function)
+               #: The positional parameter names of ``function``.
+  193:         self.argnames: Final = argnames
+               #: The keyword parameter names of ``function`` which declare defaults.
+               #: Keyword-only parameters are *not* included.
+  193:         self.kwargnames: Final = kwargnames
+               #: The plugin which defined this hook implementation.
+  193:         self.plugin: Final = plugin
+               #: The :class:`HookimplOpts` used to configure this hook implementation.
+  193:         self.opts: Final = hook_impl_opts
+               #: The name of the plugin which defined this hook implementation.
+  193:         self.plugin_name: Final = plugin_name
+               #: Whether the hook implementation is a :ref:`wrapper <hookwrapper>`.
+  193:         self.wrapper: Final = hook_impl_opts["wrapper"]
+               #: Whether the hook implementation is an :ref:`old-style wrapper
+               #: <old_style_hookwrappers>`.
+  193:         self.hookwrapper: Final = hook_impl_opts["hookwrapper"]
+               #: Whether validation against a hook specification is :ref:`optional
+               #: <optionalhook>`.
+  193:         self.optionalhook: Final = hook_impl_opts["optionalhook"]
+               #: Whether to try to order this hook implementation :ref:`first
+               #: <callorder>`.
+  193:         self.tryfirst: Final = hook_impl_opts["tryfirst"]
+               #: Whether to try to order this hook implementation :ref:`last
+               #: <callorder>`.
+  193:         self.trylast: Final = hook_impl_opts["trylast"]
+       
+    1:     def __repr__(self) -> str:
+               return f"<HookImpl plugin_name={self.plugin_name!r}, plugin={self.plugin!r}>"

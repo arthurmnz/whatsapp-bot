@@ -1,0 +1,16 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from typing import List, Optional
+       
+    1: from .._models import BaseModel
+    1: from .online_evaluator_spend_group import OnlineEvaluatorSpendGroup
+       
+    1: __all__ = ["GetOnlineEvaluatorSpendResponse"]
+       
+       
+   12: class GetOnlineEvaluatorSpendResponse(BaseModel):
+    3:     groups: Optional[List[OnlineEvaluatorSpendGroup]] = None
+       
+    3:     period_end: Optional[str] = None
+       
+    3:     period_start: Optional[str] = None

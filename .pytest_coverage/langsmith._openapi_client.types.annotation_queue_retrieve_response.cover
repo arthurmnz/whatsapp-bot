@@ -1,0 +1,60 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from typing import Dict, List, Optional
+    1: from datetime import datetime
+    1: from typing_extensions import Literal
+       
+    1: from .._models import BaseModel
+    1: from .annotation_queue_rubric_item_schema import AnnotationQueueRubricItemSchema
+       
+    1: __all__ = ["AnnotationQueueRetrieveResponse", "AssignedReviewer"]
+       
+       
+   12: class AssignedReviewer(BaseModel):
+    1:     """Identity info for an assigned reviewer on an annotation queue."""
+       
+    2:     id: str
+       
+    3:     email: Optional[str] = None
+       
+    3:     name: Optional[str] = None
+       
+       
+   42: class AnnotationQueueRetrieveResponse(BaseModel):
+    1:     """AnnotationQueue schema with rubric."""
+       
+    2:     id: str
+       
+    2:     name: str
+       
+    2:     queue_type: Literal["single", "pairwise"]
+       
+    2:     tenant_id: str
+       
+    3:     assigned_reviewers: Optional[List[AssignedReviewer]] = None
+       
+    3:     created_at: Optional[datetime] = None
+       
+    3:     default_dataset: Optional[str] = None
+       
+    3:     description: Optional[str] = None
+       
+    3:     enable_reservations: Optional[bool] = None
+       
+    3:     metadata: Optional[Dict[str, object]] = None
+       
+    3:     num_reviewers_per_item: Optional[int] = None
+       
+    3:     reservation_minutes: Optional[int] = None
+       
+    3:     reviewer_access_mode: Optional[str] = None
+       
+    3:     rubric_instructions: Optional[str] = None
+       
+    3:     rubric_items: Optional[List[AnnotationQueueRubricItemSchema]] = None
+       
+    3:     run_rule_id: Optional[str] = None
+       
+    3:     source_rule_id: Optional[str] = None
+       
+    3:     updated_at: Optional[datetime] = None

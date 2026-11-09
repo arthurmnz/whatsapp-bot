@@ -1,0 +1,212 @@
+       # pyright: reportTypedDictNotRequiredAccess=false, reportGeneralTypeIssues=false, reportArgumentType=false, reportAttributeAccessIssue=false
+    1: from __future__ import annotations
+       
+    1: from dataclasses import dataclass, field
+    1: from typing import TypedDict
+       
+    1: from pydantic_core.core_schema import (
+           ComputedField,
+           CoreSchema,
+           DefinitionReferenceSchema,
+           SerSchema,
+           iter_union_choices,
+       )
+    1: from typing_extensions import TypeAlias
+       
+    1: AllSchemas: TypeAlias = 'CoreSchema | SerSchema | ComputedField'
+       
+       
+    2: class GatherResult(TypedDict):
+    1:     """Schema traversing result."""
+       
+    1:     collected_references: dict[str, DefinitionReferenceSchema | None]
+    1:     """The collected definition references.
+       
+           If a definition reference schema can be inlined, it means that there is
+           only one in the whole core schema. As such, it is stored as the value.
+           Otherwise, the value is set to `None`.
+           """
+       
+    1:     deferred_discriminator_schemas: list[CoreSchema]
+    1:     """The list of core schemas having the discriminator application deferred."""
+       
+       
+    2: class MissingDefinitionError(LookupError):
+    1:     """A reference was pointing to a non-existing core schema."""
+       
+    1:     def __init__(self, schema_reference: str, /) -> None:
+               self.schema_reference = schema_reference
+       
+       
+    3: @dataclass
+    2: class GatherContext:
+    1:     """The current context used during core schema traversing.
+       
+           Context instances should only be used during schema traversing.
+           """
+       
+    1:     definitions: dict[str, CoreSchema]
+    1:     """The available definitions."""
+       
+    1:     deferred_discriminator_schemas: list[CoreSchema] = field(init=False, default_factory=list)
+    1:     """The list of core schemas having the discriminator application deferred.
+       
+           Internally, these core schemas have a specific key set in the core metadata dict.
+           """
+       
+    1:     collected_references: dict[str, DefinitionReferenceSchema | None] = field(init=False, default_factory=dict)
+    1:     """The collected definition references.
+       
+           If a definition reference schema can be inlined, it means that there is
+           only one in the whole core schema. As such, it is stored as the value.
+           Otherwise, the value is set to `None`.
+       
+           During schema traversing, definition reference schemas can be added as candidates, or removed
+           (by setting the value to `None`).
+           """
+       
+       
+    1: def traverse_metadata(schema: AllSchemas, ctx: GatherContext) -> None:
+ 3105:     meta = schema.get('metadata')
+ 3105:     if meta is not None and 'pydantic_internal_union_discriminator' in meta:
+               ctx.deferred_discriminator_schemas.append(schema)  # pyright: ignore[reportArgumentType]
+       
+       
+    1: def traverse_definition_ref(def_ref_schema: DefinitionReferenceSchema, ctx: GatherContext) -> None:
+  103:     schema_ref = def_ref_schema['schema_ref']
+       
+  103:     if schema_ref not in ctx.collected_references:
+   97:         definition = ctx.definitions.get(schema_ref)
+   97:         if definition is None:
+                   raise MissingDefinitionError(schema_ref)
+       
+               # The `'definition-ref'` schema was only encountered once, make it
+               # a candidate to be inlined:
+   97:         ctx.collected_references[schema_ref] = def_ref_schema
+   97:         traverse_schema(definition, ctx)
+   97:         if 'serialization' in def_ref_schema:
+                   traverse_schema(def_ref_schema['serialization'], ctx)
+   97:         traverse_metadata(def_ref_schema, ctx)
+           else:
+               # The `'definition-ref'` schema was already encountered, meaning
+               # the previously encountered schema (and this one) can't be inlined:
+    6:         ctx.collected_references[schema_ref] = None
+       
+       
+    1: def traverse_schema(schema: AllSchemas, context: GatherContext) -> None:
+           # TODO When we drop 3.9, use a match statement to get better type checking and remove
+           # file-level type ignore.
+           # (the `'type'` could also be fetched in every `if/elif` statement, but this alters performance).
+ 3111:     schema_type = schema['type']
+       
+ 3111:     if schema_type == 'definition-ref':
+  103:         traverse_definition_ref(schema, context)
+               # `traverse_definition_ref` handles the possible serialization and metadata schemas:
+  103:         return
+ 3008:     elif schema_type == 'definitions':
+               traverse_schema(schema['schema'], context)
+               for definition in schema['definitions']:
+                   traverse_schema(definition, context)
+ 3008:     elif schema_type in {'list', 'set', 'frozenset', 'generator'}:
+   57:         if 'items_schema' in schema:
+   57:             traverse_schema(schema['items_schema'], context)
+ 2951:     elif schema_type == 'tuple':
+   31:         if 'items_schema' in schema:
+  105:             for s in schema['items_schema']:
+   74:                 traverse_schema(s, context)
+ 2920:     elif schema_type == 'dict':
+  116:         if 'keys_schema' in schema:
+  116:             traverse_schema(schema['keys_schema'], context)
+  116:         if 'values_schema' in schema:
+  116:             traverse_schema(schema['values_schema'], context)
+ 2804:     elif schema_type == 'union':
+  341:         for choice in iter_union_choices(schema):
+  240:             traverse_schema(choice, context)
+ 2703:     elif schema_type == 'tagged-union':
+    8:         for v in schema['choices'].values():
+    6:             traverse_schema(v, context)
+ 2701:     elif schema_type == 'chain':
+    6:         for step in schema['steps']:
+    4:             traverse_schema(step, context)
+ 2699:     elif schema_type == 'lax-or-strict':
+   18:         traverse_schema(schema['lax_schema'], context)
+   18:         traverse_schema(schema['strict_schema'], context)
+ 2681:     elif schema_type == 'json-or-python':
+   38:         traverse_schema(schema['json_schema'], context)
+   38:         traverse_schema(schema['python_schema'], context)
+ 2643:     elif schema_type in {'model-fields', 'typed-dict'}:
+   92:         if 'extras_schema' in schema:
+                   traverse_schema(schema['extras_schema'], context)
+   92:         if 'computed_fields' in schema:
+   92:             for s in schema['computed_fields']:
+                       traverse_schema(s, context)
+  739:         for s in schema['fields'].values():
+  647:             traverse_schema(s, context)
+ 2551:     elif schema_type == 'dataclass-args':
+               if 'computed_fields' in schema:
+                   for s in schema['computed_fields']:
+                       traverse_schema(s, context)
+               for s in schema['fields']:
+                   traverse_schema(s, context)
+ 2551:     elif schema_type == 'arguments':
+   24:         for s in schema['arguments_schema']:
+   16:             traverse_schema(s['schema'], context)
+    8:         if 'var_args_schema' in schema:
+                   traverse_schema(schema['var_args_schema'], context)
+    8:         if 'var_kwargs_schema' in schema:
+                   traverse_schema(schema['var_kwargs_schema'], context)
+ 2543:     elif schema_type == 'arguments-v3':
+               for s in schema['arguments_schema']:
+                   traverse_schema(s['schema'], context)
+ 2543:     elif schema_type == 'call':
+    8:         traverse_schema(schema['arguments_schema'], context)
+    8:         if 'return_schema' in schema:
+                   traverse_schema(schema['return_schema'], context)
+ 2535:     elif schema_type == 'computed-field':
+               traverse_schema(schema['return_schema'], context)
+ 2535:     elif schema_type == 'function-before':
+    1:         if 'schema' in schema:
+    1:             traverse_schema(schema['schema'], context)
+    1:         if 'json_schema_input_schema' in schema:
+                   traverse_schema(schema['json_schema_input_schema'], context)
+ 2534:     elif schema_type == 'function-plain':
+               # TODO duplicate schema types for serializers and validators, needs to be deduplicated.
+   18:         if 'return_schema' in schema:
+                   traverse_schema(schema['return_schema'], context)
+   18:         if 'json_schema_input_schema' in schema:
+                   traverse_schema(schema['json_schema_input_schema'], context)
+ 2516:     elif schema_type == 'function-wrap':
+               # TODO duplicate schema types for serializers and validators, needs to be deduplicated.
+    4:         if 'return_schema' in schema:
+                   traverse_schema(schema['return_schema'], context)
+    4:         if 'schema' in schema:
+    4:             traverse_schema(schema['schema'], context)
+    4:         if 'json_schema_input_schema' in schema:
+                   traverse_schema(schema['json_schema_input_schema'], context)
+           else:
+ 2512:         if 'schema' in schema:
+ 1539:             traverse_schema(schema['schema'], context)
+       
+ 3008:     if 'serialization' in schema:
+   20:         traverse_schema(schema['serialization'], context)
+ 3008:     traverse_metadata(schema, context)
+       
+       
+    1: def gather_schemas_for_cleaning(schema: CoreSchema, definitions: dict[str, CoreSchema]) -> GatherResult:
+           """Traverse the core schema and definitions and return the necessary information for schema cleaning.
+       
+           During the core schema traversing, any `'definition-ref'` schema is:
+       
+           - Validated: the reference must point to an existing definition. If this is not the case, a
+             `MissingDefinitionError` exception is raised.
+           - Stored in the context: the actual reference is stored in the context. Depending on whether
+             the `'definition-ref'` schema is encountered more that once, the schema itself is also
+             saved in the context to be inlined (i.e. replaced by the definition it points to).
+           """
+   54:     context = GatherContext(definitions)
+   54:     traverse_schema(schema, context)
+       
+   54:     return {
+   54:         'collected_references': context.collected_references,
+   54:         'deferred_discriminator_schemas': context.deferred_discriminator_schemas,
+           }

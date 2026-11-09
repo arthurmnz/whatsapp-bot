@@ -1,0 +1,565 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from typing import Dict, List, Union, Optional
+    1: from typing_extensions import Literal, TypeAlias
+       
+    1: from .._models import BaseModel
+       
+   49: __all__ = [
+    1:     "SandboxResponse",
+    1:     "MountConfig",
+    1:     "MountConfigAuth",
+    1:     "MountConfigAuthAws",
+    1:     "MountConfigAuthAwsAccessKeyID",
+    1:     "MountConfigAuthAwsSecretAccessKey",
+    1:     "MountConfigAuthGcp",
+    1:     "MountConfigAuthGcpServiceAccountJson",
+    1:     "MountConfigMount",
+    1:     "MountConfigMountSandboxapiS3BucketMountSpec",
+    1:     "MountConfigMountSandboxapiS3BucketMountSpecS3",
+    1:     "MountConfigMountSandboxapiS3BucketMountSpecCache",
+    1:     "MountConfigMountSandboxapiS3BucketMountSpecContexthub",
+    1:     "MountConfigMountSandboxapiS3BucketMountSpecGcs",
+    1:     "MountConfigMountSandboxapiS3BucketMountSpecGit",
+    1:     "MountConfigMountSandboxapiS3BucketMountSpecGitRef",
+    1:     "MountConfigMountSandboxapiGcsBucketMountSpec",
+    1:     "MountConfigMountSandboxapiGcsBucketMountSpecGcs",
+    1:     "MountConfigMountSandboxapiGcsBucketMountSpecCache",
+    1:     "MountConfigMountSandboxapiGcsBucketMountSpecContexthub",
+    1:     "MountConfigMountSandboxapiGcsBucketMountSpecGit",
+    1:     "MountConfigMountSandboxapiGcsBucketMountSpecGitRef",
+    1:     "MountConfigMountSandboxapiGcsBucketMountSpecS3",
+    1:     "MountConfigMountSandboxapiGitRepoMountSpec",
+    1:     "MountConfigMountSandboxapiGitRepoMountSpecGit",
+    1:     "MountConfigMountSandboxapiGitRepoMountSpecGitRef",
+    1:     "MountConfigMountSandboxapiGitRepoMountSpecCache",
+    1:     "MountConfigMountSandboxapiGitRepoMountSpecContexthub",
+    1:     "MountConfigMountSandboxapiGitRepoMountSpecGcs",
+    1:     "MountConfigMountSandboxapiGitRepoMountSpecS3",
+    1:     "MountConfigMountSandboxapiContextHubRepoMountSpec",
+    1:     "MountConfigMountSandboxapiContextHubRepoMountSpecContexthub",
+    1:     "MountConfigMountSandboxapiContextHubRepoMountSpecCache",
+    1:     "MountConfigMountSandboxapiContextHubRepoMountSpecGcs",
+    1:     "MountConfigMountSandboxapiContextHubRepoMountSpecGit",
+    1:     "MountConfigMountSandboxapiContextHubRepoMountSpecGitRef",
+    1:     "MountConfigMountSandboxapiContextHubRepoMountSpecS3",
+    1:     "ProxyConfig",
+    1:     "ProxyConfigAccessControl",
+    1:     "ProxyConfigCallback",
+    1:     "ProxyConfigCallbackRequestHeader",
+    1:     "ProxyConfigRule",
+    1:     "ProxyConfigRuleAws",
+    1:     "ProxyConfigRuleAwsAccessKeyID",
+    1:     "ProxyConfigRuleAwsSecretAccessKey",
+    1:     "ProxyConfigRuleGcp",
+    1:     "ProxyConfigRuleGcpServiceAccountJson",
+    1:     "ProxyConfigRuleHeader",
+       ]
+       
+       
+   12: class MountConfigAuthAwsAccessKeyID(BaseModel):
+    2:     type: Literal["plaintext", "opaque", "workspace_secret"]
+       
+    3:     is_set: Optional[bool] = None
+       
+    3:     value: Optional[str] = None
+       
+       
+   12: class MountConfigAuthAwsSecretAccessKey(BaseModel):
+    2:     type: Literal["plaintext", "opaque", "workspace_secret"]
+       
+    3:     is_set: Optional[bool] = None
+       
+    3:     value: Optional[str] = None
+       
+       
+    9: class MountConfigAuthAws(BaseModel):
+    2:     access_key_id: MountConfigAuthAwsAccessKeyID
+       
+    2:     secret_access_key: MountConfigAuthAwsSecretAccessKey
+       
+       
+   12: class MountConfigAuthGcpServiceAccountJson(BaseModel):
+    2:     type: Literal["plaintext", "opaque", "workspace_secret"]
+       
+    3:     is_set: Optional[bool] = None
+       
+    3:     value: Optional[str] = None
+       
+       
+    7: class MountConfigAuthGcp(BaseModel):
+    2:     service_account_json: MountConfigAuthGcpServiceAccountJson
+       
+       
+   10: class MountConfigAuth(BaseModel):
+    3:     aws: Optional[MountConfigAuthAws] = None
+       
+    3:     gcp: Optional[MountConfigAuthGcp] = None
+       
+       
+   16: class MountConfigMountSandboxapiS3BucketMountSpecS3(BaseModel):
+    2:     bucket: str
+       
+    2:     region: str
+       
+    3:     endpoint_url: Optional[str] = None
+       
+    3:     path_style: Optional[bool] = None
+       
+    3:     prefix: Optional[str] = None
+       
+       
+   10: class MountConfigMountSandboxapiS3BucketMountSpecCache(BaseModel):
+    3:     max_size_bytes: Optional[int] = None
+       
+    3:     writeback_seconds: Optional[int] = None
+       
+       
+   10: class MountConfigMountSandboxapiS3BucketMountSpecContexthub(BaseModel):
+    2:     repo: str
+    1:     """Repo is the Context Hub repository to sync, as "owner/repo" (e.g.
+       
+           "-/my-agent", where "-" is the current workspace). The repo's latest commit tree
+           is mirrored into the mount path.
+           """
+       
+    3:     initial_pull_only: Optional[bool] = None
+    1:     """
+           InitialPullOnly syncs the repo once at startup instead of polling for updates
+           for the sandbox's lifetime.
+           """
+       
+       
+   10: class MountConfigMountSandboxapiS3BucketMountSpecGcs(BaseModel):
+    2:     bucket: str
+       
+    3:     prefix: Optional[str] = None
+       
+       
+    9: class MountConfigMountSandboxapiS3BucketMountSpecGitRef(BaseModel):
+    2:     name: str
+       
+    2:     type: Literal["branch", "tag"]
+       
+       
+   12: class MountConfigMountSandboxapiS3BucketMountSpecGit(BaseModel):
+    2:     remote_url: str
+       
+    3:     ref: Optional[MountConfigMountSandboxapiS3BucketMountSpecGitRef] = None
+       
+    3:     refresh_interval_seconds: Optional[int] = None
+       
+       
+   24: class MountConfigMountSandboxapiS3BucketMountSpec(BaseModel):
+    2:     id: str
+       
+    2:     mount_path: str
+       
+    2:     s3: MountConfigMountSandboxapiS3BucketMountSpecS3
+       
+    2:     type: Literal["s3", "gcs", "git", "contexthub"]
+       
+    3:     cache: Optional[MountConfigMountSandboxapiS3BucketMountSpecCache] = None
+       
+    3:     contexthub: Optional[MountConfigMountSandboxapiS3BucketMountSpecContexthub] = None
+       
+    3:     gcs: Optional[MountConfigMountSandboxapiS3BucketMountSpecGcs] = None
+       
+    3:     git: Optional[MountConfigMountSandboxapiS3BucketMountSpecGit] = None
+       
+    3:     read_only: Optional[bool] = None
+       
+       
+   10: class MountConfigMountSandboxapiGcsBucketMountSpecGcs(BaseModel):
+    2:     bucket: str
+       
+    3:     prefix: Optional[str] = None
+       
+       
+   10: class MountConfigMountSandboxapiGcsBucketMountSpecCache(BaseModel):
+    3:     max_size_bytes: Optional[int] = None
+       
+    3:     writeback_seconds: Optional[int] = None
+       
+       
+   10: class MountConfigMountSandboxapiGcsBucketMountSpecContexthub(BaseModel):
+    2:     repo: str
+    1:     """Repo is the Context Hub repository to sync, as "owner/repo" (e.g.
+       
+           "-/my-agent", where "-" is the current workspace). The repo's latest commit tree
+           is mirrored into the mount path.
+           """
+       
+    3:     initial_pull_only: Optional[bool] = None
+    1:     """
+           InitialPullOnly syncs the repo once at startup instead of polling for updates
+           for the sandbox's lifetime.
+           """
+       
+       
+    9: class MountConfigMountSandboxapiGcsBucketMountSpecGitRef(BaseModel):
+    2:     name: str
+       
+    2:     type: Literal["branch", "tag"]
+       
+       
+   12: class MountConfigMountSandboxapiGcsBucketMountSpecGit(BaseModel):
+    2:     remote_url: str
+       
+    3:     ref: Optional[MountConfigMountSandboxapiGcsBucketMountSpecGitRef] = None
+       
+    3:     refresh_interval_seconds: Optional[int] = None
+       
+       
+   16: class MountConfigMountSandboxapiGcsBucketMountSpecS3(BaseModel):
+    2:     bucket: str
+       
+    2:     region: str
+       
+    3:     endpoint_url: Optional[str] = None
+       
+    3:     path_style: Optional[bool] = None
+       
+    3:     prefix: Optional[str] = None
+       
+       
+   24: class MountConfigMountSandboxapiGcsBucketMountSpec(BaseModel):
+    2:     id: str
+       
+    2:     gcs: MountConfigMountSandboxapiGcsBucketMountSpecGcs
+       
+    2:     mount_path: str
+       
+    2:     type: Literal["s3", "gcs", "git", "contexthub"]
+       
+    3:     cache: Optional[MountConfigMountSandboxapiGcsBucketMountSpecCache] = None
+       
+    3:     contexthub: Optional[MountConfigMountSandboxapiGcsBucketMountSpecContexthub] = None
+       
+    3:     git: Optional[MountConfigMountSandboxapiGcsBucketMountSpecGit] = None
+       
+    3:     read_only: Optional[bool] = None
+       
+    3:     s3: Optional[MountConfigMountSandboxapiGcsBucketMountSpecS3] = None
+       
+       
+    9: class MountConfigMountSandboxapiGitRepoMountSpecGitRef(BaseModel):
+    2:     name: str
+       
+    2:     type: Literal["branch", "tag"]
+       
+       
+   12: class MountConfigMountSandboxapiGitRepoMountSpecGit(BaseModel):
+    2:     remote_url: str
+       
+    3:     ref: Optional[MountConfigMountSandboxapiGitRepoMountSpecGitRef] = None
+       
+    3:     refresh_interval_seconds: Optional[int] = None
+       
+       
+   10: class MountConfigMountSandboxapiGitRepoMountSpecCache(BaseModel):
+    3:     max_size_bytes: Optional[int] = None
+       
+    3:     writeback_seconds: Optional[int] = None
+       
+       
+   10: class MountConfigMountSandboxapiGitRepoMountSpecContexthub(BaseModel):
+    2:     repo: str
+    1:     """Repo is the Context Hub repository to sync, as "owner/repo" (e.g.
+       
+           "-/my-agent", where "-" is the current workspace). The repo's latest commit tree
+           is mirrored into the mount path.
+           """
+       
+    3:     initial_pull_only: Optional[bool] = None
+    1:     """
+           InitialPullOnly syncs the repo once at startup instead of polling for updates
+           for the sandbox's lifetime.
+           """
+       
+       
+   10: class MountConfigMountSandboxapiGitRepoMountSpecGcs(BaseModel):
+    2:     bucket: str
+       
+    3:     prefix: Optional[str] = None
+       
+       
+   16: class MountConfigMountSandboxapiGitRepoMountSpecS3(BaseModel):
+    2:     bucket: str
+       
+    2:     region: str
+       
+    3:     endpoint_url: Optional[str] = None
+       
+    3:     path_style: Optional[bool] = None
+       
+    3:     prefix: Optional[str] = None
+       
+       
+   24: class MountConfigMountSandboxapiGitRepoMountSpec(BaseModel):
+    2:     id: str
+       
+    2:     git: MountConfigMountSandboxapiGitRepoMountSpecGit
+       
+    2:     mount_path: str
+       
+    2:     type: Literal["s3", "gcs", "git", "contexthub"]
+       
+    3:     cache: Optional[MountConfigMountSandboxapiGitRepoMountSpecCache] = None
+       
+    3:     contexthub: Optional[MountConfigMountSandboxapiGitRepoMountSpecContexthub] = None
+       
+    3:     gcs: Optional[MountConfigMountSandboxapiGitRepoMountSpecGcs] = None
+       
+    3:     read_only: Optional[bool] = None
+       
+    3:     s3: Optional[MountConfigMountSandboxapiGitRepoMountSpecS3] = None
+       
+       
+   10: class MountConfigMountSandboxapiContextHubRepoMountSpecContexthub(BaseModel):
+    2:     repo: str
+    1:     """Repo is the Context Hub repository to sync, as "owner/repo" (e.g.
+       
+           "-/my-agent", where "-" is the current workspace). The repo's latest commit tree
+           is mirrored into the mount path.
+           """
+       
+    3:     initial_pull_only: Optional[bool] = None
+    1:     """
+           InitialPullOnly syncs the repo once at startup instead of polling for updates
+           for the sandbox's lifetime.
+           """
+       
+       
+   10: class MountConfigMountSandboxapiContextHubRepoMountSpecCache(BaseModel):
+    3:     max_size_bytes: Optional[int] = None
+       
+    3:     writeback_seconds: Optional[int] = None
+       
+       
+   10: class MountConfigMountSandboxapiContextHubRepoMountSpecGcs(BaseModel):
+    2:     bucket: str
+       
+    3:     prefix: Optional[str] = None
+       
+       
+    9: class MountConfigMountSandboxapiContextHubRepoMountSpecGitRef(BaseModel):
+    2:     name: str
+       
+    2:     type: Literal["branch", "tag"]
+       
+       
+   12: class MountConfigMountSandboxapiContextHubRepoMountSpecGit(BaseModel):
+    2:     remote_url: str
+       
+    3:     ref: Optional[MountConfigMountSandboxapiContextHubRepoMountSpecGitRef] = None
+       
+    3:     refresh_interval_seconds: Optional[int] = None
+       
+       
+   16: class MountConfigMountSandboxapiContextHubRepoMountSpecS3(BaseModel):
+    2:     bucket: str
+       
+    2:     region: str
+       
+    3:     endpoint_url: Optional[str] = None
+       
+    3:     path_style: Optional[bool] = None
+       
+    3:     prefix: Optional[str] = None
+       
+       
+   24: class MountConfigMountSandboxapiContextHubRepoMountSpec(BaseModel):
+    2:     id: str
+       
+    2:     contexthub: MountConfigMountSandboxapiContextHubRepoMountSpecContexthub
+       
+    2:     mount_path: str
+       
+    2:     type: Literal["s3", "gcs", "git", "contexthub"]
+       
+    3:     cache: Optional[MountConfigMountSandboxapiContextHubRepoMountSpecCache] = None
+       
+    3:     gcs: Optional[MountConfigMountSandboxapiContextHubRepoMountSpecGcs] = None
+       
+    3:     git: Optional[MountConfigMountSandboxapiContextHubRepoMountSpecGit] = None
+       
+    3:     read_only: Optional[bool] = None
+       
+    3:     s3: Optional[MountConfigMountSandboxapiContextHubRepoMountSpecS3] = None
+       
+       
+    2: MountConfigMount: TypeAlias = Union[
+    2:     MountConfigMountSandboxapiS3BucketMountSpec,
+    1:     MountConfigMountSandboxapiGcsBucketMountSpec,
+    1:     MountConfigMountSandboxapiGitRepoMountSpec,
+    1:     MountConfigMountSandboxapiContextHubRepoMountSpec,
+       ]
+       
+       
+   10: class MountConfig(BaseModel):
+    3:     auth: Optional[MountConfigAuth] = None
+       
+    3:     mounts: Optional[List[MountConfigMount]] = None
+       
+       
+   10: class ProxyConfigAccessControl(BaseModel):
+    3:     allow_list: Optional[List[str]] = None
+       
+    3:     deny_list: Optional[List[str]] = None
+       
+       
+   14: class ProxyConfigCallbackRequestHeader(BaseModel):
+    2:     name: str
+       
+    2:     type: Literal["plaintext", "opaque", "workspace_secret"]
+       
+    3:     is_set: Optional[bool] = None
+       
+    3:     value: Optional[str] = None
+       
+       
+   16: class ProxyConfigCallback(BaseModel):
+    2:     match_hosts: List[str]
+       
+    2:     ttl_seconds: int
+       
+    2:     url: str
+       
+    3:     full_request: Optional[bool] = None
+       
+    3:     request_headers: Optional[List[ProxyConfigCallbackRequestHeader]] = None
+       
+       
+   12: class ProxyConfigRuleAwsAccessKeyID(BaseModel):
+    2:     type: Literal["plaintext", "opaque", "workspace_secret"]
+       
+    3:     is_set: Optional[bool] = None
+       
+    3:     value: Optional[str] = None
+       
+       
+   12: class ProxyConfigRuleAwsSecretAccessKey(BaseModel):
+    2:     type: Literal["plaintext", "opaque", "workspace_secret"]
+       
+    3:     is_set: Optional[bool] = None
+       
+    3:     value: Optional[str] = None
+       
+       
+    9: class ProxyConfigRuleAws(BaseModel):
+    2:     access_key_id: ProxyConfigRuleAwsAccessKeyID
+       
+    2:     secret_access_key: ProxyConfigRuleAwsSecretAccessKey
+       
+       
+   12: class ProxyConfigRuleGcpServiceAccountJson(BaseModel):
+    2:     type: Literal["plaintext", "opaque", "workspace_secret"]
+       
+    3:     is_set: Optional[bool] = None
+       
+    3:     value: Optional[str] = None
+       
+       
+    9: class ProxyConfigRuleGcp(BaseModel):
+    2:     scopes: List[str]
+       
+    2:     service_account_json: ProxyConfigRuleGcpServiceAccountJson
+       
+       
+   14: class ProxyConfigRuleHeader(BaseModel):
+    2:     name: str
+       
+    2:     type: Literal["plaintext", "opaque", "workspace_secret"]
+       
+    3:     is_set: Optional[bool] = None
+       
+    3:     value: Optional[str] = None
+       
+       
+   24: class ProxyConfigRule(BaseModel):
+    2:     name: str
+       
+    3:     aws: Optional[ProxyConfigRuleAws] = None
+       
+    3:     enabled: Optional[bool] = None
+       
+    3:     env_vars: Optional[Dict[str, str]] = None
+    1:     """
+           EnvVars are plaintext env vars set for every command in the sandbox while this
+           rule is enabled. Use them for tools that refuse to run unless a credential env
+           var is present (e.g. gh needs GH_TOKEN) even though this rule injects the real
+           credential on the wire — set a dummy value here so the command starts. Explicit
+           per-sandbox env_vars win over these, and provider-managed (AWS/GCP) vars win
+           over both.
+           """
+       
+    3:     gcp: Optional[ProxyConfigRuleGcp] = None
+       
+    3:     headers: Optional[List[ProxyConfigRuleHeader]] = None
+       
+    3:     match_hosts: Optional[List[str]] = None
+    1:     """MatchHosts is only accepted for header injection rules.
+       
+           Provider auth rules use built-in host matching.
+           """
+       
+    3:     match_paths: Optional[List[str]] = None
+       
+    3:     type: Optional[str] = None
+       
+       
+   14: class ProxyConfig(BaseModel):
+    3:     access_control: Optional[ProxyConfigAccessControl] = None
+       
+    3:     callbacks: Optional[List[ProxyConfigCallback]] = None
+       
+    3:     no_proxy: Optional[List[str]] = None
+       
+    3:     rules: Optional[List[ProxyConfigRule]] = None
+       
+       
+   50: class SandboxResponse(BaseModel):
+    3:     id: Optional[str] = None
+       
+    3:     cpu_millicores: Optional[int] = None
+       
+    3:     created_at: Optional[str] = None
+       
+    3:     created_by: Optional[str] = None
+       
+    3:     dataplane_url: Optional[str] = None
+       
+    3:     delete_after_stop_seconds: Optional[int] = None
+       
+    3:     fs_capacity_bytes: Optional[int] = None
+       
+    3:     idle_ttl_seconds: Optional[int] = None
+       
+    3:     labels: Optional[Dict[str, str]] = None
+       
+    3:     mem_bytes: Optional[int] = None
+       
+    3:     mount_config: Optional[MountConfig] = None
+       
+    3:     name: Optional[str] = None
+       
+    3:     preserve_memory_on_stop: Optional[bool] = None
+       
+    3:     proxy_config: Optional[ProxyConfig] = None
+       
+    3:     size_class: Optional[str] = None
+       
+    3:     snapshot_id: Optional[str] = None
+       
+    3:     status: Optional[str] = None
+       
+    3:     status_message: Optional[str] = None
+       
+    3:     stopped_at: Optional[str] = None
+       
+    3:     updated_at: Optional[str] = None
+       
+    3:     updated_by: Optional[str] = None
+       
+    3:     vcpus: Optional[int] = None

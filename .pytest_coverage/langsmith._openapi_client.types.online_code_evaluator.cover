@@ -1,0 +1,16 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from typing import Optional
+       
+    1: from .._models import BaseModel
+       
+    1: __all__ = ["OnlineCodeEvaluator"]
+       
+       
+   12: class OnlineCodeEvaluator(BaseModel):
+    3:     code: Optional[str] = None
+       
+    3:     evaluator_id: Optional[str] = None
+       
+    3:     language: Optional[str] = None
+    1:     """Default: "python" """

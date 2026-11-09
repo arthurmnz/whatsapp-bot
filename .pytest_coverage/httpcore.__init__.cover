@@ -1,0 +1,141 @@
+    1: from ._api import request, stream
+    1: from ._async import (
+           AsyncConnectionInterface,
+           AsyncConnectionPool,
+           AsyncHTTP2Connection,
+           AsyncHTTP11Connection,
+           AsyncHTTPConnection,
+           AsyncHTTPProxy,
+           AsyncSOCKSProxy,
+       )
+    1: from ._backends.base import (
+           SOCKET_OPTION,
+           AsyncNetworkBackend,
+           AsyncNetworkStream,
+           NetworkBackend,
+           NetworkStream,
+       )
+    1: from ._backends.mock import AsyncMockBackend, AsyncMockStream, MockBackend, MockStream
+    1: from ._backends.sync import SyncBackend
+    1: from ._exceptions import (
+           ConnectError,
+           ConnectionNotAvailable,
+           ConnectTimeout,
+           LocalProtocolError,
+           NetworkError,
+           PoolTimeout,
+           ProtocolError,
+           ProxyError,
+           ReadError,
+           ReadTimeout,
+           RemoteProtocolError,
+           TimeoutException,
+           UnsupportedProtocol,
+           WriteError,
+           WriteTimeout,
+       )
+    1: from ._models import URL, Origin, Proxy, Request, Response
+    1: from ._ssl import default_ssl_context
+    1: from ._sync import (
+           ConnectionInterface,
+           ConnectionPool,
+           HTTP2Connection,
+           HTTP11Connection,
+           HTTPConnection,
+           HTTPProxy,
+           SOCKSProxy,
+       )
+       
+       # The 'httpcore.AnyIOBackend' class is conditional on 'anyio' being installed.
+    1: try:
+    1:     from ._backends.anyio import AnyIOBackend
+       except ImportError:  # pragma: nocover
+       
+           class AnyIOBackend:  # type: ignore
+               def __init__(self, *args, **kwargs):  # type: ignore
+                   msg = (
+                       "Attempted to use 'httpcore.AnyIOBackend' but 'anyio' is not installed."
+                   )
+                   raise RuntimeError(msg)
+       
+       
+       # The 'httpcore.TrioBackend' class is conditional on 'trio' being installed.
+    1: try:
+    1:     from ._backends.trio import TrioBackend
+    1: except ImportError:  # pragma: nocover
+       
+    2:     class TrioBackend:  # type: ignore
+    1:         def __init__(self, *args, **kwargs):  # type: ignore
+                   msg = "Attempted to use 'httpcore.TrioBackend' but 'trio' is not installed."
+                   raise RuntimeError(msg)
+       
+       
+   50: __all__ = [
+           # top-level requests
+    1:     "request",
+    1:     "stream",
+           # models
+    1:     "Origin",
+    1:     "URL",
+    1:     "Request",
+    1:     "Response",
+    1:     "Proxy",
+           # async
+    1:     "AsyncHTTPConnection",
+    1:     "AsyncConnectionPool",
+    1:     "AsyncHTTPProxy",
+    1:     "AsyncHTTP11Connection",
+    1:     "AsyncHTTP2Connection",
+    1:     "AsyncConnectionInterface",
+    1:     "AsyncSOCKSProxy",
+           # sync
+    1:     "HTTPConnection",
+    1:     "ConnectionPool",
+    1:     "HTTPProxy",
+    1:     "HTTP11Connection",
+    1:     "HTTP2Connection",
+    1:     "ConnectionInterface",
+    1:     "SOCKSProxy",
+           # network backends, implementations
+    1:     "SyncBackend",
+    1:     "AnyIOBackend",
+    1:     "TrioBackend",
+           # network backends, mock implementations
+    1:     "AsyncMockBackend",
+    1:     "AsyncMockStream",
+    1:     "MockBackend",
+    1:     "MockStream",
+           # network backends, interface
+    1:     "AsyncNetworkStream",
+    1:     "AsyncNetworkBackend",
+    1:     "NetworkStream",
+    1:     "NetworkBackend",
+           # util
+    1:     "default_ssl_context",
+    1:     "SOCKET_OPTION",
+           # exceptions
+    1:     "ConnectionNotAvailable",
+    1:     "ProxyError",
+    1:     "ProtocolError",
+    1:     "LocalProtocolError",
+    1:     "RemoteProtocolError",
+    1:     "UnsupportedProtocol",
+    1:     "TimeoutException",
+    1:     "PoolTimeout",
+    1:     "ConnectTimeout",
+    1:     "ReadTimeout",
+    1:     "WriteTimeout",
+    1:     "NetworkError",
+    1:     "ConnectError",
+    1:     "ReadError",
+    1:     "WriteError",
+       ]
+       
+    1: __version__ = "1.0.9"
+       
+       
+    1: __locals = locals()
+   50: for __name in __all__:
+           # Exclude SOCKET_OPTION, it causes AttributeError on Python 3.14
+   49:     if not __name.startswith(("__", "SOCKET_OPTION")):
+   48:         setattr(__locals[__name], "__module__", "httpcore")  # noqa

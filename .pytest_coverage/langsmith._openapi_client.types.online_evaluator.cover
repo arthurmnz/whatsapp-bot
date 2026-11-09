@@ -1,0 +1,42 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from typing import List, Optional
+       
+    1: from .._models import BaseModel
+    1: from .online_llm_evaluator import OnlineLlmEvaluator
+    1: from .online_code_evaluator import OnlineCodeEvaluator
+    1: from .online_evaluator_type import OnlineEvaluatorType
+    1: from .online_evaluator_run_rule import OnlineEvaluatorRunRule
+       
+    1: __all__ = ["OnlineEvaluator"]
+       
+       
+   30: class OnlineEvaluator(BaseModel):
+    3:     id: Optional[str] = None
+       
+    3:     code_evaluator: Optional[OnlineCodeEvaluator] = None
+       
+    3:     created_at: Optional[str] = None
+       
+    3:     created_by: Optional[str] = None
+       
+    3:     feedback_keys: Optional[List[str]] = None
+       
+    3:     is_managed: Optional[bool] = None
+    1:     """
+           IsManaged marks a LangChain Tuned Evaluator (currently the tuned Perceived Error
+           judge). NULL in the DB is read as false via COALESCE.
+           """
+       
+    3:     llm_evaluator: Optional[OnlineLlmEvaluator] = None
+    1:     """Embedded child evaluator (populated based on type)"""
+       
+    3:     name: Optional[str] = None
+       
+    3:     run_rules: Optional[List[OnlineEvaluatorRunRule]] = None
+       
+    3:     tenant_id: Optional[str] = None
+       
+    3:     type: Optional[OnlineEvaluatorType] = None
+       
+    3:     updated_at: Optional[str] = None

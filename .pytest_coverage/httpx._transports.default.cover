@@ -1,0 +1,406 @@
+    1: """
+       Custom transports, with nicely configured defaults.
+       
+       The following additional keyword arguments are currently supported by httpcore...
+       
+       * uds: str
+       * local_address: str
+       * retries: int
+       
+       Example usages...
+       
+       # Disable HTTP/2 on a single specific domain.
+       mounts = {
+           "all://": httpx.HTTPTransport(http2=True),
+           "all://*example.org": httpx.HTTPTransport()
+       }
+       
+       # Using advanced httpcore configuration, with connection retries.
+       transport = httpx.HTTPTransport(retries=1)
+       client = httpx.Client(transport=transport)
+       
+       # Using advanced httpcore configuration, with unix domain sockets.
+       transport = httpx.HTTPTransport(uds="socket.uds")
+       client = httpx.Client(transport=transport)
+       """
+       
+    1: from __future__ import annotations
+       
+    1: import contextlib
+    1: import typing
+    1: from types import TracebackType
+       
+    1: if typing.TYPE_CHECKING:
+           import ssl  # pragma: no cover
+       
+           import httpx  # pragma: no cover
+       
+    1: from .._config import DEFAULT_LIMITS, Limits, Proxy, create_ssl_context
+    1: from .._exceptions import (
+           ConnectError,
+           ConnectTimeout,
+           LocalProtocolError,
+           NetworkError,
+           PoolTimeout,
+           ProtocolError,
+           ProxyError,
+           ReadError,
+           ReadTimeout,
+           RemoteProtocolError,
+           TimeoutException,
+           UnsupportedProtocol,
+           WriteError,
+           WriteTimeout,
+       )
+    1: from .._models import Request, Response
+    1: from .._types import AsyncByteStream, CertTypes, ProxyTypes, SyncByteStream
+    1: from .._urls import URL
+    1: from .base import AsyncBaseTransport, BaseTransport
+       
+    1: T = typing.TypeVar("T", bound="HTTPTransport")
+    1: A = typing.TypeVar("A", bound="AsyncHTTPTransport")
+       
+    2: SOCKET_OPTION = typing.Union[
+    2:     typing.Tuple[int, int, int],
+    1:     typing.Tuple[int, int, typing.Union[bytes, bytearray]],
+    1:     typing.Tuple[int, int, None, int],
+       ]
+       
+    1: __all__ = ["AsyncHTTPTransport", "HTTPTransport"]
+       
+    1: HTTPCORE_EXC_MAP: dict[type[Exception], type[httpx.HTTPError]] = {}
+       
+       
+    1: def _load_httpcore_exceptions() -> dict[type[Exception], type[httpx.HTTPError]]:
+    1:     import httpcore
+       
+    1:     return {
+    1:         httpcore.TimeoutException: TimeoutException,
+    1:         httpcore.ConnectTimeout: ConnectTimeout,
+    1:         httpcore.ReadTimeout: ReadTimeout,
+    1:         httpcore.WriteTimeout: WriteTimeout,
+    1:         httpcore.PoolTimeout: PoolTimeout,
+    1:         httpcore.NetworkError: NetworkError,
+    1:         httpcore.ConnectError: ConnectError,
+    1:         httpcore.ReadError: ReadError,
+    1:         httpcore.WriteError: WriteError,
+    1:         httpcore.ProxyError: ProxyError,
+    1:         httpcore.UnsupportedProtocol: UnsupportedProtocol,
+    1:         httpcore.ProtocolError: ProtocolError,
+    1:         httpcore.LocalProtocolError: LocalProtocolError,
+    1:         httpcore.RemoteProtocolError: RemoteProtocolError,
+           }
+       
+       
+    2: @contextlib.contextmanager
+    2: def map_httpcore_exceptions() -> typing.Iterator[None]:
+           global HTTPCORE_EXC_MAP
+    3:     if len(HTTPCORE_EXC_MAP) == 0:
+    1:         HTTPCORE_EXC_MAP = _load_httpcore_exceptions()
+    3:     try:
+    3:         yield
+           except Exception as exc:
+               mapped_exc = None
+       
+               for from_exc, to_exc in HTTPCORE_EXC_MAP.items():
+                   if not isinstance(exc, from_exc):
+                       continue
+                   # We want to map to the most specific exception we can find.
+                   # Eg if `exc` is an `httpcore.ReadTimeout`, we want to map to
+                   # `httpx.ReadTimeout`, not just `httpx.TimeoutException`.
+                   if mapped_exc is None or issubclass(to_exc, mapped_exc):
+                       mapped_exc = to_exc
+       
+               if mapped_exc is None:  # pragma: no cover
+                   raise
+       
+               message = str(exc)
+               raise mapped_exc(message) from exc
+       
+       
+    2: class ResponseStream(SyncByteStream):
+    1:     def __init__(self, httpcore_stream: typing.Iterable[bytes]) -> None:
+               self._httpcore_stream = httpcore_stream
+       
+    1:     def __iter__(self) -> typing.Iterator[bytes]:
+               with map_httpcore_exceptions():
+                   for part in self._httpcore_stream:
+                       yield part
+       
+    1:     def close(self) -> None:
+               if hasattr(self._httpcore_stream, "close"):
+                   self._httpcore_stream.close()
+       
+       
+    2: class HTTPTransport(BaseTransport):
+    1:     def __init__(
+               self,
+    1:         verify: ssl.SSLContext | str | bool = True,
+    1:         cert: CertTypes | None = None,
+    1:         trust_env: bool = True,
+    1:         http1: bool = True,
+    1:         http2: bool = False,
+    1:         limits: Limits = DEFAULT_LIMITS,
+    1:         proxy: ProxyTypes | None = None,
+    1:         uds: str | None = None,
+    1:         local_address: str | None = None,
+    1:         retries: int = 0,
+    1:         socket_options: typing.Iterable[SOCKET_OPTION] | None = None,
+           ) -> None:
+    2:         import httpcore
+       
+    2:         proxy = Proxy(url=proxy) if isinstance(proxy, (str, URL)) else proxy
+    2:         ssl_context = create_ssl_context(verify=verify, cert=cert, trust_env=trust_env)
+       
+    2:         if proxy is None:
+    4:             self._pool = httpcore.ConnectionPool(
+    2:                 ssl_context=ssl_context,
+    2:                 max_connections=limits.max_connections,
+    2:                 max_keepalive_connections=limits.max_keepalive_connections,
+    2:                 keepalive_expiry=limits.keepalive_expiry,
+    2:                 http1=http1,
+    2:                 http2=http2,
+    2:                 uds=uds,
+    2:                 local_address=local_address,
+    2:                 retries=retries,
+    2:                 socket_options=socket_options,
+                   )
+               elif proxy.url.scheme in ("http", "https"):
+                   self._pool = httpcore.HTTPProxy(
+                       proxy_url=httpcore.URL(
+                           scheme=proxy.url.raw_scheme,
+                           host=proxy.url.raw_host,
+                           port=proxy.url.port,
+                           target=proxy.url.raw_path,
+                       ),
+                       proxy_auth=proxy.raw_auth,
+                       proxy_headers=proxy.headers.raw,
+                       ssl_context=ssl_context,
+                       proxy_ssl_context=proxy.ssl_context,
+                       max_connections=limits.max_connections,
+                       max_keepalive_connections=limits.max_keepalive_connections,
+                       keepalive_expiry=limits.keepalive_expiry,
+                       http1=http1,
+                       http2=http2,
+                       socket_options=socket_options,
+                   )
+               elif proxy.url.scheme in ("socks5", "socks5h"):
+                   try:
+                       import socksio  # noqa
+                   except ImportError:  # pragma: no cover
+                       raise ImportError(
+                           "Using SOCKS proxy, but the 'socksio' package is not installed. "
+                           "Make sure to install httpx using `pip install httpx[socks]`."
+                       ) from None
+       
+                   self._pool = httpcore.SOCKSProxy(
+                       proxy_url=httpcore.URL(
+                           scheme=proxy.url.raw_scheme,
+                           host=proxy.url.raw_host,
+                           port=proxy.url.port,
+                           target=proxy.url.raw_path,
+                       ),
+                       proxy_auth=proxy.raw_auth,
+                       ssl_context=ssl_context,
+                       max_connections=limits.max_connections,
+                       max_keepalive_connections=limits.max_keepalive_connections,
+                       keepalive_expiry=limits.keepalive_expiry,
+                       http1=http1,
+                       http2=http2,
+                   )
+               else:  # pragma: no cover
+                   raise ValueError(
+                       "Proxy protocol must be either 'http', 'https', 'socks5', or 'socks5h',"
+                       f" but got {proxy.url.scheme!r}."
+                   )
+       
+    1:     def __enter__(self: T) -> T:  # Use generics for subclass support.
+    2:         self._pool.__enter__()
+    2:         return self
+       
+    1:     def __exit__(
+               self,
+               exc_type: type[BaseException] | None = None,
+               exc_value: BaseException | None = None,
+               traceback: TracebackType | None = None,
+           ) -> None:
+    4:         with map_httpcore_exceptions():
+    2:             self._pool.__exit__(exc_type, exc_value, traceback)
+       
+    1:     def handle_request(
+               self,
+               request: Request,
+           ) -> Response:
+               assert isinstance(request.stream, SyncByteStream)
+               import httpcore
+       
+               req = httpcore.Request(
+                   method=request.method,
+                   url=httpcore.URL(
+                       scheme=request.url.raw_scheme,
+                       host=request.url.raw_host,
+                       port=request.url.port,
+                       target=request.url.raw_path,
+                   ),
+                   headers=request.headers.raw,
+                   content=request.stream,
+                   extensions=request.extensions,
+               )
+               with map_httpcore_exceptions():
+                   resp = self._pool.handle_request(req)
+       
+               assert isinstance(resp.stream, typing.Iterable)
+       
+               return Response(
+                   status_code=resp.status,
+                   headers=resp.headers,
+                   stream=ResponseStream(resp.stream),
+                   extensions=resp.extensions,
+               )
+       
+    1:     def close(self) -> None:
+               self._pool.close()
+       
+       
+    2: class AsyncResponseStream(AsyncByteStream):
+    1:     def __init__(self, httpcore_stream: typing.AsyncIterable[bytes]) -> None:
+               self._httpcore_stream = httpcore_stream
+       
+    1:     async def __aiter__(self) -> typing.AsyncIterator[bytes]:
+               with map_httpcore_exceptions():
+                   async for part in self._httpcore_stream:
+                       yield part
+       
+    1:     async def aclose(self) -> None:
+               if hasattr(self._httpcore_stream, "aclose"):
+                   await self._httpcore_stream.aclose()
+       
+       
+    2: class AsyncHTTPTransport(AsyncBaseTransport):
+    1:     def __init__(
+               self,
+    1:         verify: ssl.SSLContext | str | bool = True,
+    1:         cert: CertTypes | None = None,
+    1:         trust_env: bool = True,
+    1:         http1: bool = True,
+    1:         http2: bool = False,
+    1:         limits: Limits = DEFAULT_LIMITS,
+    1:         proxy: ProxyTypes | None = None,
+    1:         uds: str | None = None,
+    1:         local_address: str | None = None,
+    1:         retries: int = 0,
+    1:         socket_options: typing.Iterable[SOCKET_OPTION] | None = None,
+           ) -> None:
+    1:         import httpcore
+       
+    1:         proxy = Proxy(url=proxy) if isinstance(proxy, (str, URL)) else proxy
+    1:         ssl_context = create_ssl_context(verify=verify, cert=cert, trust_env=trust_env)
+       
+    1:         if proxy is None:
+    2:             self._pool = httpcore.AsyncConnectionPool(
+    1:                 ssl_context=ssl_context,
+    1:                 max_connections=limits.max_connections,
+    1:                 max_keepalive_connections=limits.max_keepalive_connections,
+    1:                 keepalive_expiry=limits.keepalive_expiry,
+    1:                 http1=http1,
+    1:                 http2=http2,
+    1:                 uds=uds,
+    1:                 local_address=local_address,
+    1:                 retries=retries,
+    1:                 socket_options=socket_options,
+                   )
+               elif proxy.url.scheme in ("http", "https"):
+                   self._pool = httpcore.AsyncHTTPProxy(
+                       proxy_url=httpcore.URL(
+                           scheme=proxy.url.raw_scheme,
+                           host=proxy.url.raw_host,
+                           port=proxy.url.port,
+                           target=proxy.url.raw_path,
+                       ),
+                       proxy_auth=proxy.raw_auth,
+                       proxy_headers=proxy.headers.raw,
+                       proxy_ssl_context=proxy.ssl_context,
+                       ssl_context=ssl_context,
+                       max_connections=limits.max_connections,
+                       max_keepalive_connections=limits.max_keepalive_connections,
+                       keepalive_expiry=limits.keepalive_expiry,
+                       http1=http1,
+                       http2=http2,
+                       socket_options=socket_options,
+                   )
+               elif proxy.url.scheme in ("socks5", "socks5h"):
+                   try:
+                       import socksio  # noqa
+                   except ImportError:  # pragma: no cover
+                       raise ImportError(
+                           "Using SOCKS proxy, but the 'socksio' package is not installed. "
+                           "Make sure to install httpx using `pip install httpx[socks]`."
+                       ) from None
+       
+                   self._pool = httpcore.AsyncSOCKSProxy(
+                       proxy_url=httpcore.URL(
+                           scheme=proxy.url.raw_scheme,
+                           host=proxy.url.raw_host,
+                           port=proxy.url.port,
+                           target=proxy.url.raw_path,
+                       ),
+                       proxy_auth=proxy.raw_auth,
+                       ssl_context=ssl_context,
+                       max_connections=limits.max_connections,
+                       max_keepalive_connections=limits.max_keepalive_connections,
+                       keepalive_expiry=limits.keepalive_expiry,
+                       http1=http1,
+                       http2=http2,
+                   )
+               else:  # pragma: no cover
+                   raise ValueError(
+                       "Proxy protocol must be either 'http', 'https', 'socks5', or 'socks5h',"
+                       " but got {proxy.url.scheme!r}."
+                   )
+       
+    1:     async def __aenter__(self: A) -> A:  # Use generics for subclass support.
+    1:         await self._pool.__aenter__()
+    1:         return self
+       
+    1:     async def __aexit__(
+               self,
+               exc_type: type[BaseException] | None = None,
+               exc_value: BaseException | None = None,
+               traceback: TracebackType | None = None,
+           ) -> None:
+    2:         with map_httpcore_exceptions():
+    1:             await self._pool.__aexit__(exc_type, exc_value, traceback)
+       
+    1:     async def handle_async_request(
+               self,
+               request: Request,
+           ) -> Response:
+               assert isinstance(request.stream, AsyncByteStream)
+               import httpcore
+       
+               req = httpcore.Request(
+                   method=request.method,
+                   url=httpcore.URL(
+                       scheme=request.url.raw_scheme,
+                       host=request.url.raw_host,
+                       port=request.url.port,
+                       target=request.url.raw_path,
+                   ),
+                   headers=request.headers.raw,
+                   content=request.stream,
+                   extensions=request.extensions,
+               )
+               with map_httpcore_exceptions():
+                   resp = await self._pool.handle_async_request(req)
+       
+               assert isinstance(resp.stream, typing.AsyncIterable)
+       
+               return Response(
+                   status_code=resp.status,
+                   headers=resp.headers,
+                   stream=AsyncResponseStream(resp.stream),
+                   extensions=resp.extensions,
+               )
+       
+    1:     async def aclose(self) -> None:
+               await self._pool.aclose()

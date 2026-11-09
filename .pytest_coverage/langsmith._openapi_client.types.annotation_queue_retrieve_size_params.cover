@@ -1,0 +1,12 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from __future__ import annotations
+       
+    1: from typing import Optional
+    1: from typing_extensions import Literal, TypedDict
+       
+    1: __all__ = ["AnnotationQueueRetrieveSizeParams"]
+       
+       
+    2: class AnnotationQueueRetrieveSizeParams(TypedDict, total=False):
+    1:     status: Optional[Literal["needs_my_review", "needs_others_review", "completed"]]

@@ -1,0 +1,24 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from typing import Optional
+       
+    1: from .run import Run
+    1: from .._models import BaseModel
+    1: from .trace_aggregates import TraceAggregates
+       
+    1: __all__ = ["Trace"]
+       
+       
+   10: class Trace(BaseModel):
+    3:     root_run: Optional[Run] = None
+    1:     """`root_run` is the trace's root run.
+       
+           Which properties are populated is controlled by `selects` in the request.
+           """
+       
+    3:     trace_aggregates: Optional[TraceAggregates] = None
+    1:     """`trace_aggregates` carries trace-wide aggregate metrics.
+       
+           Omitted when no aggregate field was selected, or `null` (then later filled) on
+           the streaming wire while the aggregate values are still being computed.
+           """

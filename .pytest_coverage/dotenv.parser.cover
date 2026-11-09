@@ -1,0 +1,184 @@
+    1: import codecs
+    1: import re
+    1: from typing import (
+           IO,
+           Iterator,
+           Match,
+           NamedTuple,
+           Optional,
+           Pattern,
+           Sequence,
+       )
+       
+       
+    1: def make_regex(string: str, extra_flags: int = 0) -> Pattern[str]:
+   15:     return re.compile(string, re.UNICODE | extra_flags)
+       
+       
+    1: _newline = make_regex(r"(\r\n|\n|\r)")
+    1: _multiline_whitespace = make_regex(r"\s*", extra_flags=re.MULTILINE)
+    1: _whitespace = make_regex(r"[^\S\r\n]*")
+    1: _export = make_regex(r"(?:export[^\S\r\n]+)?")
+    1: _single_quoted_key = make_regex(r"'([^']+)'")
+    1: _unquoted_key = make_regex(r"([^=\#\s]+)")
+    1: _equal_sign = make_regex(r"(=[^\S\r\n]*)")
+       # A backslash always escapes the character after it, so that an escaped
+       # backslash (`\\`) is not mistaken for the start of an escaped quote.
+    1: _single_quoted_value = make_regex(r"'((?:\\.|[^'\\])*)'", extra_flags=re.DOTALL)
+    1: _double_quoted_value = make_regex(r'"((?:\\.|[^"\\])*)"', extra_flags=re.DOTALL)
+    1: _unquoted_value = make_regex(r"([^\r\n]*)")
+    1: _comment = make_regex(r"(?:[^\S\r\n]*#[^\r\n]*)?")
+    1: _end_of_line = make_regex(r"[^\S\r\n]*(?:\r\n|\n|\r|$)")
+    1: _rest_of_line = make_regex(r"[^\r\n]*(?:\r|\n|\r\n)?")
+    1: _double_quote_escapes = make_regex(r"\\[\\'\"abfnrtv]")
+    1: _single_quote_escapes = make_regex(r"\\[\\']")
+       
+       
+    6: class Original(NamedTuple):
+    1:     string: str
+    1:     line: int
+       
+       
+    8: class Binding(NamedTuple):
+    1:     key: Optional[str]
+    1:     value: Optional[str]
+    1:     original: Original
+    1:     error: bool
+       
+       
+    2: class Position:
+    1:     def __init__(self, chars: int, line: int) -> None:
+    2:         self.chars = chars
+    2:         self.line = line
+       
+    2:     @classmethod
+    2:     def start(cls) -> "Position":
+    2:         return cls(chars=0, line=1)
+       
+    1:     def set(self, other: "Position") -> None:
+   16:         self.chars = other.chars
+   16:         self.line = other.line
+       
+    1:     def advance(self, string: str) -> None:
+  116:         self.chars += len(string)
+  116:         self.line += len(re.findall(_newline, string))
+       
+       
+    2: class Error(Exception):
+    1:     pass
+       
+       
+    2: class Reader:
+    1:     def __init__(self, stream: IO[str]) -> None:
+    1:         self.string = stream.read().removeprefix("\ufeff")
+    1:         self.position = Position.start()
+    1:         self.mark = Position.start()
+       
+    1:     def has_next(self) -> bool:
+   33:         return self.position.chars < len(self.string)
+       
+    1:     def set_mark(self) -> None:
+   16:         self.mark.set(self.position)
+       
+    1:     def get_marked(self) -> Original:
+   32:         return Original(
+   16:             string=self.string[self.mark.chars : self.position.chars],
+   16:             line=self.mark.line,
+               )
+       
+    1:     def peek(self, count: int) -> str:
+   44:         return self.string[self.position.chars : self.position.chars + count]
+       
+    1:     def read(self, count: int) -> str:
+               result = self.string[self.position.chars : self.position.chars + count]
+               if len(result) < count:
+                   raise Error("read: End of string")
+               self.position.advance(result)
+               return result
+       
+    1:     def read_regex(self, regex: Pattern[str]) -> Sequence[str]:
+  116:         match = regex.match(self.string, self.position.chars)
+  116:         if match is None:
+                   raise Error("read_regex: Pattern not found")
+  116:         self.position.advance(self.string[match.start() : match.end()])
+  116:         return match.groups()
+       
+       
+    1: def decode_escapes(regex: Pattern[str], string: str) -> str:
+           def decode_match(match: Match[str]) -> str:
+               return codecs.decode(match.group(0), "unicode-escape")  # type: ignore
+       
+           return regex.sub(decode_match, string)
+       
+       
+    1: def parse_key(reader: Reader) -> Optional[str]:
+   16:     char = reader.peek(1)
+   16:     if char == "#":
+    4:         return None
+   12:     elif char == "'":
+               (key,) = reader.read_regex(_single_quoted_key)
+           else:
+   12:         (key,) = reader.read_regex(_unquoted_key)
+   12:     return key
+       
+       
+    1: def parse_unquoted_value(reader: Reader) -> str:
+   12:     (part,) = reader.read_regex(_unquoted_value)
+   12:     return re.sub(r"\s+#.*", "", part).rstrip()
+       
+       
+    1: def parse_value(reader: Reader) -> str:
+   12:     char = reader.peek(1)
+   12:     if char == "'":
+               (value,) = reader.read_regex(_single_quoted_value)
+               return decode_escapes(_single_quote_escapes, value)
+   12:     elif char == '"':
+               (value,) = reader.read_regex(_double_quoted_value)
+               return decode_escapes(_double_quote_escapes, value)
+   12:     elif char in ("", "\n", "\r"):
+               return ""
+           else:
+   12:         return parse_unquoted_value(reader)
+       
+       
+    1: def parse_binding(reader: Reader) -> Binding:
+   16:     reader.set_mark()
+   16:     try:
+   16:         reader.read_regex(_multiline_whitespace)
+   16:         if not reader.has_next():
+                   return Binding(
+                       key=None,
+                       value=None,
+                       original=reader.get_marked(),
+                       error=False,
+                   )
+   16:         reader.read_regex(_export)
+   16:         key = parse_key(reader)
+   16:         reader.read_regex(_whitespace)
+   16:         if reader.peek(1) == "=":
+   12:             reader.read_regex(_equal_sign)
+   12:             value: Optional[str] = parse_value(reader)
+               else:
+    4:             value = None
+   16:         reader.read_regex(_comment)
+   16:         reader.read_regex(_end_of_line)
+   32:         return Binding(
+   16:             key=key,
+   16:             value=value,
+   16:             original=reader.get_marked(),
+   16:             error=False,
+               )
+           except Error:
+               reader.read_regex(_rest_of_line)
+               return Binding(
+                   key=None,
+                   value=None,
+                   original=reader.get_marked(),
+                   error=True,
+               )
+       
+       
+    1: def parse_stream(stream: IO[str]) -> Iterator[Binding]:
+    1:     reader = Reader(stream)
+   17:     while reader.has_next():
+   16:         yield parse_binding(reader)

@@ -1,0 +1,24 @@
+# Ambientes virtuais
+venv/
+.venv/
+env/
+
+# Arquivos de ambiente e segredos
+.env
+.env.*
+!.env.example
+
+# Bytecode e caches do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Testes e cobertura
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs e IDEs
+*.log
+.vscode/
+.idea/

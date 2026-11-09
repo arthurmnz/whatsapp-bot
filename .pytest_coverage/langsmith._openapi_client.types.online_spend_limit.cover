@@ -1,0 +1,15 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from typing import Optional
+       
+    1: from .._models import BaseModel
+       
+    1: __all__ = ["OnlineSpendLimit"]
+       
+       
+   12: class OnlineSpendLimit(BaseModel):
+    3:     limit_usd: Optional[float] = None
+       
+    3:     utilization_pct: Optional[float] = None
+       
+    3:     window: Optional[str] = None

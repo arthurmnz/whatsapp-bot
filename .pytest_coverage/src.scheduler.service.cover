@@ -1,0 +1,223 @@
+    1: import asyncio
+    1: import datetime
+    1: import inspect
+    1: import logging
+    1: from pathlib import Path
+    1: import random
+    1: from zoneinfo import ZoneInfo
+       
+    1: from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    1: from apscheduler.triggers.cron import CronTrigger
+       
+    1: from src.evolution_client import send_media, send_text
+    1: from src.scheduler.config import ScheduledJob, SchedulerConfig, load_scheduler_config
+       
+    1: logger = logging.getLogger(__name__)
+       
+    1: SUPPORTED_MEDIA_EXTENSIONS = {".gif", ".mp4", ".webp", ".png", ".jpg", ".jpeg"}
+       
+    1: DIAS_SEMANA_PT = [
+           "segunda-feira",
+           "terça-feira",
+           "quarta-feira",
+           "quinta-feira",
+           "sexta-feira",
+           "sábado",
+           "domingo",
+       ]
+       
+       
+    1: def pick_random_media(job_id: str, config_dir: str | Path = "config") -> Path | None:
+           """Busca mídias suportadas na pasta `<config_dir>/<job_id>/` e sorteia uma.
+       
+           Args:
+               job_id: ID do job agendado.
+               config_dir: Diretório base das configurações (default: "config").
+       
+           Returns:
+               Path do arquivo de mídia selecionado ou None se a pasta não existir ou estiver vazia.
+           """
+    6:     folder = Path(config_dir) / job_id
+    6:     if not folder.is_dir():
+    2:         return None
+       
+    8:     valid_files: list[Path] = [
+   21:         f
+   16:         for f in folder.iterdir()
+   21:         if f.is_file() and not f.name.startswith(".") and f.suffix.lower() in SUPPORTED_MEDIA_EXTENSIONS
+           ]
+       
+    4:     if not valid_files:
+    1:         return None
+       
+    3:     return random.choice(valid_files)
+       
+       
+    1: def render_message(template: str, timezone: str = "America/Sao_Paulo") -> str:
+           """Substitui variáveis opcionais {data}, {hora}, {dia_semana} sem falhar com chaves arbitrárias.
+       
+           Args:
+               template: Texto da mensagem contendo ou não as tags opcionais.
+               timezone: Nome do fuso horário IANA (ex: 'America/Sao_Paulo').
+       
+           Returns:
+               String da mensagem com variáveis interpoladas.
+           """
+    5:     try:
+    5:         tz = ZoneInfo(timezone)
+           except Exception:
+               tz = ZoneInfo("America/Sao_Paulo")
+       
+    5:     now = datetime.datetime.now(tz)
+    5:     data_str = now.strftime("%d/%m/%Y")
+    5:     hora_str = now.strftime("%H:%M")
+    5:     dia_semana_str = DIAS_SEMANA_PT[now.weekday()]
+       
+    5:     return (
+    5:         template
+    5:         .replace("{data}", data_str)
+    5:         .replace("{hora}", hora_str)
+    5:         .replace("{dia_semana}", dia_semana_str)
+           )
+       
+       
+    6: async def dispatch_job(
+    1:     job: ScheduledJob,
+    1:     timezone: str = "America/Sao_Paulo",
+    1:     config_dir: str | Path = "config",
+    1: ) -> None:
+           """Executa o envio da mensagem (ou mídia com legenda) para a lista de destinatários com rate limiting."""
+    3:     rendered_text = render_message(job.message, timezone=timezone)
+    3:     total_recipients = len(job.recipients)
+    3:     media_file = pick_random_media(job.id, config_dir=config_dir)
+       
+    3:     if media_file:
+    4:         logger.info(
+    2:             "Disparando job '%s' ('%s') com mídia '%s' para %d destinatário(s).",
+    2:             job.id,
+    2:             job.name,
+    2:             media_file.name,
+    2:             total_recipients,
+               )
+           else:
+    2:         logger.info(
+    1:             "Disparando job '%s' ('%s') apenas texto para %d destinatário(s).",
+    1:             job.id,
+    1:             job.name,
+    1:             total_recipients,
+               )
+       
+    7:     for idx, recipient in enumerate(job.recipients):
+    4:         try:
+    4:             if media_file:
+    2:                 logger.debug("Enviando mídia '%s' para '%s'...", media_file.name, recipient)
+    2:                 try:
+    2:                     res = send_media(to=recipient, media_path_or_url=media_file, caption=rendered_text)
+    2:                     if inspect.isawaitable(res):
+    2:                         await res
+    1:                     logger.info("Mídia enviada com sucesso para '%s' (job: '%s').", recipient, job.id)
+    1:                 except Exception as media_exc:
+    2:                     logger.warning(
+    1:                         "Falha ao enviar mídia para '%s' no job '%s': %s. Tentando fallback para envio em texto puro...",
+    1:                         recipient,
+    1:                         job.id,
+    1:                         media_exc,
+                           )
+    1:                     res = send_text(to=recipient, text=rendered_text)
+    1:                     if inspect.isawaitable(res):
+    1:                         await res
+    1:                     logger.info("Fallback de texto enviado com sucesso para '%s' (job: '%s').", recipient, job.id)
+                   else:
+    2:                 logger.debug("Enviando mensagem do job '%s' para '%s'...", job.id, recipient)
+    2:                 res = send_text(to=recipient, text=rendered_text)
+    2:                 if inspect.isawaitable(res):
+    2:                     await res
+    2:                 logger.info("Mensagem enviada com sucesso para '%s' (job: '%s').", recipient, job.id)
+       
+               except Exception as exc:
+                   # Mascara credenciais e loga falha isolada para não interromper outros envios
+                   logger.error(
+                       "Falha ao enviar mensagem do job '%s' para o destinatário '%s': %s",
+                       job.id,
+                       recipient,
+                       exc,
+                   )
+       
+               # Rate limiting defensivo entre destinatários sucessivos
+    4:         if idx < total_recipients - 1 and job.delay_seconds > 0:
+    1:             await asyncio.sleep(job.delay_seconds)
+       
+       
+    2: class CronScheduler:
+    1:     """Gerenciador do ciclo de vida e agendamentos do AsyncIOScheduler."""
+       
+    1:     def __init__(self, config_path: str | None = None) -> None:
+    1:         self.config_path = config_path
+    1:         self._config_dir = Path(config_path).parent if config_path else Path("config")
+    1:         self._scheduler: AsyncIOScheduler | None = None
+    1:         self._config: SchedulerConfig | None = None
+       
+    2:     @property
+    2:     def is_running(self) -> bool:
+    2:         return self._scheduler is not None and self._scheduler.running
+       
+    1:     def register_jobs(self, config: SchedulerConfig) -> None:
+               """Limpa jobs anteriores e agenda apenas os jobs habilitados."""
+    2:         if self._scheduler is None:
+                   return
+       
+    2:         self._scheduler.remove_all_jobs()
+    2:         registered_count = 0
+       
+    6:         for job in config.jobs:
+    4:             if not job.enabled:
+    1:                 logger.info("Job '%s' ignorado no agendador (enabled=false).", job.id)
+    1:                 continue
+       
+    3:             trigger = CronTrigger.from_crontab(job.cron, timezone=ZoneInfo(config.timezone))
+    6:             self._scheduler.add_job(
+    3:                 dispatch_job,
+    3:                 trigger=trigger,
+    3:                 args=[job, config.timezone, self._config_dir],
+    3:                 id=job.id,
+    3:                 name=job.name,
+    3:                 replace_existing=True,
+                   )
+    3:             registered_count += 1
+    6:             logger.info(
+    3:                 "Job '%s' ('%s') registrado com cron '%s' [%s].",
+    3:                 job.id,
+    3:                 job.name,
+    3:                 job.cron,
+    3:                 config.timezone,
+                   )
+       
+    2:         logger.info("Total de %d job(s) ativo(s) registrado(s) no scheduler.", registered_count)
+       
+    1:     def start(self) -> None:
+               """Carrega a configuração e inicia o loop do scheduler."""
+    1:         self._config = load_scheduler_config(self.config_path)
+       
+    1:         if self._scheduler is None:
+    1:             self._scheduler = AsyncIOScheduler(timezone=ZoneInfo(self._config.timezone))
+       
+    1:         self.register_jobs(self._config)
+       
+    1:         if not self._scheduler.running:
+    1:             self._scheduler.start()
+    1:             logger.info("CronScheduler iniciado com sucesso.")
+       
+    1:     def shutdown(self) -> None:
+               """Finaliza o scheduler graciosamente."""
+    1:         if self._scheduler is not None and self._scheduler.running:
+    1:             self._scheduler.shutdown(wait=False)
+    1:             logger.info("CronScheduler desligado com sucesso.")
+       
+    1:     def reload(self, config_path: str | None = None) -> None:
+               """Recarrega a configuração do disco e reconfigura os jobs."""
+               if config_path:
+                   self.config_path = config_path
+                   self._config_dir = Path(config_path).parent
+               logger.info("Recarregando configuração do CronScheduler...")
+               self._config = load_scheduler_config(self.config_path)
+               self.register_jobs(self._config)

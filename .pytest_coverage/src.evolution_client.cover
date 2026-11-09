@@ -1,0 +1,581 @@
+    1: import base64
+    1: import logging
+    1: import os
+    1: from pathlib import Path
+    1: import re
+    1: import shutil
+    1: import subprocess
+    1: import tempfile
+    1: from urllib.parse import quote
+       
+    1: import httpx
+    1: from dotenv import load_dotenv
+       
+    1: load_dotenv()
+       
+    1: logger = logging.getLogger(__name__)
+       
+       # Expressões para alternância de 9º dígito em números brasileiros:
+       # Ex: 5574999298992@s.whatsapp.net -> 557499298992@s.whatsapp.net
+    1: RE_BR_9_DIGIT = re.compile(r"^\+?55([1-9]{2})9(\d{8})(@s\.whatsapp\.net)?$")
+       # Ex: 557499298992@s.whatsapp.net -> 5574999298992@s.whatsapp.net
+    1: RE_BR_8_DIGIT = re.compile(r"^\+?55([1-9]{2})([6-9]\d{7})(@s\.whatsapp\.net)?$")
+       
+       
+    1: def _get_evolution_config() -> tuple[str, str, str]:
+    3:     base_url = os.environ.get("EVOLUTION_API_URL", "http://localhost:8080").rstrip("/")
+    3:     api_key = os.environ.get("EVOLUTION_API_KEY", "")
+    3:     instance = os.environ.get("EVOLUTION_INSTANCE", "")
+    3:     return base_url, api_key, instance
+       
+       
+    1: def _get_alternative_recipients(recipient: str) -> list[str]:
+           """Gera formatos alternativos de número (com/sem 9º dígito brasileiro)."""
+    3:     alternatives: list[str] = []
+       
+    3:     m9 = RE_BR_9_DIGIT.match(recipient)
+    3:     if m9:
+    3:         ddd, rest = m9.group(1), m9.group(2)
+    3:         alternatives.append(f"55{ddd}{rest}@s.whatsapp.net")
+       
+    3:     m8 = RE_BR_8_DIGIT.match(recipient)
+    3:     if m8:
+               ddd, rest = m8.group(1), m8.group(2)
+               alternatives.append(f"55{ddd}9{rest}@s.whatsapp.net")
+       
+    3:     return alternatives
+       
+       
+    1: def _build_payloads(to: str, text: str) -> list[dict]:
+           """Retorna payloads suportados: padrão v2 e compatibilidade v1."""
+           return [
+               # Formato padrão v2
+               {"number": to, "text": text},
+               # Formato de compatibilidade v1
+               {
+                   "number": to,
+                   "textMessage": {"text": text},
+                   "options": {"delay": 1200, "presence": "composing"},
+               },
+           ]
+       
+       
+    1: def _mask_sensitive(text: str, secret: str) -> str:
+           """Oculta credenciais sensíveis (ex: API keys) de logs e mensagens de erro."""
+   12:     if secret and secret in text:
+   10:         return text.replace(secret, "***REDACTED***")
+    2:     return text
+       
+       
+    1: def _convert_gif_to_mp4(gif_path: Path) -> bytes | None:
+           """Converte um arquivo GIF animado para MP4 (H.264 yuv420p) compatível com WhatsApp.
+       
+           O WhatsApp/Baileys descarta silenciosamente arquivos .gif binários enviados como imagem,
+           exigindo transcodificação para vídeo MP4 com dimensões pares e pixel format yuv420p.
+       
+           Retorna os bytes do MP4 gerado ou None caso o ffmpeg não esteja disponível ou falhe.
+           """
+    4:     ffmpeg_bin = shutil.which("ffmpeg")
+    4:     if not ffmpeg_bin:
+    1:         logger.debug("ffmpeg não encontrado no PATH; mantendo arquivo original.")
+    1:         return None
+       
+    3:     resolved_ffmpeg = str(Path(ffmpeg_bin).resolve())
+    3:     resolved_gif = str(Path(gif_path).resolve())
+    3:     tmp_mp4_path: Path | None = None
+       
+    3:     try:
+    6:         with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp_file:
+    3:             tmp_mp4_path = Path(tmp_file.name)
+       
+    3:         cmd = [
+    3:             resolved_ffmpeg,
+    3:             "-y",
+    3:             "-i",
+    3:             resolved_gif,
+    3:             "-c:v",
+    3:             "libx264",
+    3:             "-pix_fmt",
+    3:             "yuv420p",
+    3:             "-an",
+    3:             "-movflags",
+    3:             "+faststart",
+    3:             "-vf",
+    3:             "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+    3:             str(tmp_mp4_path),
+               ]
+       
+    6:         result = subprocess.run(
+    3:             cmd,
+    3:             stdout=subprocess.PIPE,
+    3:             stderr=subprocess.PIPE,
+    3:             timeout=30,
+               )
+    2:         if result.returncode == 0 and tmp_mp4_path.is_file() and tmp_mp4_path.stat().st_size > 0:
+    1:             mp4_bytes = tmp_mp4_path.read_bytes()
+    1:             logger.info("GIF '%s' convertido com sucesso para MP4 compatível com WhatsApp.", gif_path.name)
+    1:             return mp4_bytes
+               else:
+    2:             logger.warning(
+    1:                 "ffmpeg não converteu GIF '%s' (código %d): %s",
+    1:                 gif_path.name,
+    1:                 result.returncode,
+    1:                 result.stderr.decode(errors="ignore")[:200],
+                   )
+    1:             return None
+    1:     except Exception as exc:
+    1:         logger.warning("Exceção ao converter GIF '%s' para MP4 via ffmpeg: %s", gif_path.name, exc)
+    1:         return None
+           finally:
+    3:         if tmp_mp4_path is not None:
+    3:             tmp_mp4_path.unlink(missing_ok=True)
+       
+       
+    1: def _prepare_media_payload(
+           media_path_or_url: str | Path,
+           caption: str = "",
+       ) -> tuple[str, str, str, str, bool]:
+           """Determina tipo, extensão, converte GIF animado para MP4 compatível e gera base64 se for arquivo local.
+       
+           Returns:
+               tuple[mediatype, mimetype, file_name, media_value, is_gif]
+           """
+    9:     p = Path(media_path_or_url)
+    9:     ext = p.suffix.lower()
+    9:     is_gif = False
+       
+    9:     if p.is_file():
+    7:         file_name = p.name
+    7:         data = p.read_bytes()
+       
+               # WhatsApp exige que GIFs animados sejam vídeos MP4 sem áudio com mimetype video/mp4 e gifPlayback: True
+    7:         if ext == ".gif":
+    5:             converted_mp4 = _convert_gif_to_mp4(p)
+    5:             if converted_mp4:
+    4:                 mediatype = "video"
+    4:                 mimetype = "video/mp4"
+    4:                 file_name = f"{p.stem}.mp4"
+    4:                 data = converted_mp4
+    4:                 is_gif = True
+                   else:
+                       # Fallback gracioso caso ffmpeg não esteja presente ou falhe (ex: testes unitários com bytes dummy)
+    1:                 mediatype = "image"
+    1:                 mimetype = "image/gif"
+    1:                 is_gif = False
+    2:         elif ext == ".mp4":
+    1:             mediatype = "video"
+    1:             mimetype = "video/mp4"
+    1:             is_gif = False
+    1:         elif ext in (".jpg", ".jpeg"):
+                   mediatype = "image"
+                   mimetype = "image/jpeg"
+                   is_gif = False
+    1:         elif ext == ".png":
+    1:             mediatype = "image"
+    1:             mimetype = "image/png"
+    1:             is_gif = False
+               elif ext == ".webp":
+                   mediatype = "image"
+                   mimetype = "image/webp"
+                   is_gif = False
+               else:
+                   mediatype = "document"
+                   mimetype = "application/octet-stream"
+                   is_gif = False
+       
+    7:         media_value = base64.b64encode(data).decode("utf-8")
+           else:
+    2:         file_name = p.name or "media"
+    2:         media_value = str(media_path_or_url)
+    2:         is_gif = False
+    2:         if ext == ".mp4":
+    1:             mediatype = "video"
+    1:             mimetype = "video/mp4"
+    1:         elif ext == ".gif":
+    1:             mediatype = "image"
+    1:             mimetype = "image/gif"
+               elif ext in (".jpg", ".jpeg"):
+                   mediatype = "image"
+                   mimetype = "image/jpeg"
+               elif ext == ".png":
+                   mediatype = "image"
+                   mimetype = "image/png"
+               elif ext == ".webp":
+                   mediatype = "image"
+                   mimetype = "image/webp"
+               else:
+                   mediatype = "document"
+                   mimetype = "application/octet-stream"
+       
+    9:     return mediatype, mimetype, file_name, media_value, is_gif
+       
+       
+    1: def _build_media_payloads(
+           to: str,
+           mediatype: str,
+           mimetype: str,
+           caption: str,
+           media_value: str,
+           file_name: str,
+           is_gif: bool = False,
+       ) -> list[dict]:
+           """Retorna payloads suportados para envio de mídia: v2 (com e sem gifPlayback) e v1."""
+    6:     payloads = []
+       
+    6:     if is_gif:
+               # 1. Formato v2 padrão com flag explícita gifPlayback: True para auto-play em loop no WhatsApp
+   10:         payloads.append({
+    5:             "number": to,
+    5:             "mediatype": "video",
+    5:             "mimetype": "video/mp4",
+    5:             "caption": caption,
+    5:             "media": media_value,
+    5:             "fileName": file_name,
+    5:             "gifPlayback": True,
+               })
+               # 2. Formato v2 com options
+   10:         payloads.append({
+    5:             "number": to,
+    5:             "mediatype": "video",
+    5:             "mimetype": "video/mp4",
+    5:             "caption": caption,
+    5:             "media": media_value,
+    5:             "fileName": file_name,
+    5:             "gifPlayback": True,
+    5:             "options": {"gifPlayback": True},
+               })
+               # 3. Formato v1 legado com gifPlayback
+   10:         payloads.append({
+    5:             "number": to,
+   10:             "mediaMessage": {
+    5:                 "mediatype": "video",
+    5:                 "mimetype": "video/mp4",
+    5:                 "caption": caption,
+    5:                 "media": media_value,
+    5:                 "fileName": file_name,
+    5:                 "gifPlayback": True,
+                   },
+               })
+               # 4. Fallback padrão de vídeo sem flags de GIF se a API rejeitar
+   10:         payloads.append({
+    5:             "number": to,
+    5:             "mediatype": "video",
+    5:             "mimetype": "video/mp4",
+    5:             "caption": caption,
+    5:             "media": media_value,
+    5:             "fileName": file_name,
+               })
+           else:
+               # Formato v2 padrão
+    2:         payloads.append({
+    1:             "number": to,
+    1:             "mediatype": mediatype,
+    1:             "mimetype": mimetype,
+    1:             "caption": caption,
+    1:             "media": media_value,
+    1:             "fileName": file_name,
+               })
+               # Formato v1 de compatibilidade
+    2:         payloads.append({
+    1:             "number": to,
+    2:             "mediaMessage": {
+    1:                 "mediatype": mediatype,
+    1:                 "caption": caption,
+    1:                 "media": media_value,
+    1:                 "fileName": file_name,
+                   },
+               })
+       
+    6:     return payloads
+       
+       
+    1: async def send_text(to: str, text: str) -> None:
+           """Envia uma mensagem de texto via Evolution API para o JID informado.
+           Trata erros 400 executando diagnóstico e fallbacks (9º dígito BR e formato v1/v2).
+       
+           Args:
+               to: JID do destinatário, ex: '5511999999999@s.whatsapp.net'
+               text: Texto a ser enviado.
+       
+           Raises:
+               httpx.HTTPStatusError: Se a API retornar erro HTTP mesmo após as tentativas de fallback.
+           """
+           base_url, api_key, instance = _get_evolution_config()
+           encoded_instance = quote(instance, safe="")
+           url = f"{base_url}/message/sendText/{encoded_instance}"
+           headers = {"apikey": api_key, "Content-Type": "application/json"}
+       
+           candidates = [to] + _get_alternative_recipients(to)
+           last_response: httpx.Response | None = None
+       
+           async with httpx.AsyncClient(timeout=15.0) as client:
+               for candidate in candidates:
+                   payloads = _build_payloads(candidate, text)
+                   for payload in payloads:
+                       try:
+                           response = await client.post(url, json=payload, headers=headers)
+                           last_response = response
+       
+                           if not response.is_error:
+                               resp_summary = _mask_sensitive(response.text[:200], api_key)
+                               if candidate != to:
+                                   logger.info(
+                                       "Mensagem enviada com sucesso utilizando fallback para '%s' (original: '%s') - Status %d: %s",
+                                       candidate,
+                                       to,
+                                       response.status_code,
+                                       resp_summary,
+                                   )
+                               else:
+                                   logger.info(
+                                       "Mensagem enviada com sucesso para '%s' - Status %d: %s",
+                                       candidate,
+                                       response.status_code,
+                                       resp_summary,
+                                   )
+                               return
+       
+                           # Se for 400 Bad Request, loga o diagnóstico com o corpo exato da resposta
+                           resp_body = _mask_sensitive(response.text, api_key)
+                           logger.warning(
+                               "Evolution API 400 Bad Request ao enviar para '%s' (payload=%s): %s",
+                               candidate,
+                               list(payload.keys()),
+                               resp_body,
+                           )
+       
+                           # Se a resposta indicar erro de schema v2, tenta o formato v1 no próximo loop
+                           if "textMessage" in resp_body:
+                               continue
+       
+                       except httpx.RequestError as req_err:
+                           err_msg = _mask_sensitive(str(req_err), api_key)
+                           logger.error("Erro de conexão com Evolution API em '%s': %s", url, err_msg)
+                           raise
+       
+           if last_response is not None and last_response.is_error:
+               clean_resp = _mask_sensitive(last_response.text, api_key)
+               error_msg = f"Evolution API {last_response.status_code} Error: {clean_resp}"
+               logger.error("Falha definitiva no envio para '%s': %s", to, error_msg)
+               raise httpx.HTTPStatusError(
+                   message=error_msg,
+                   request=last_response.request,
+                   response=last_response,
+               )
+       
+       
+    1: def send_text_sync(to: str, text: str) -> None:
+           """Versão síncrona com os mesmos diagnósticos e fallbacks para compatibilidade retroativa."""
+           base_url, api_key, instance = _get_evolution_config()
+           encoded_instance = quote(instance, safe="")
+           url = f"{base_url}/message/sendText/{encoded_instance}"
+           headers = {"apikey": api_key, "Content-Type": "application/json"}
+       
+           candidates = [to] + _get_alternative_recipients(to)
+           last_response: httpx.Response | None = None
+       
+           with httpx.Client(timeout=15.0) as client:
+               for candidate in candidates:
+                   payloads = _build_payloads(candidate, text)
+                   for payload in payloads:
+                       try:
+                           response = client.post(url, json=payload, headers=headers)
+                           last_response = response
+       
+                           if not response.is_error:
+                               resp_summary = _mask_sensitive(response.text[:200], api_key)
+                               if candidate != to:
+                                   logger.info(
+                                       "Mensagem enviada com sucesso utilizando fallback para '%s' (original: '%s') - Status %d: %s",
+                                       candidate,
+                                       to,
+                                       response.status_code,
+                                       resp_summary,
+                                   )
+                               else:
+                                   logger.info(
+                                       "Mensagem enviada com sucesso para '%s' - Status %d: %s",
+                                       candidate,
+                                       response.status_code,
+                                       resp_summary,
+                                   )
+                               return
+       
+                           resp_body = _mask_sensitive(response.text, api_key)
+                           logger.warning(
+                               "Evolution API 400 Bad Request ao enviar para '%s' (payload=%s): %s",
+                               candidate,
+                               list(payload.keys()),
+                               resp_body,
+                           )
+       
+                           if "textMessage" in resp_body:
+                               continue
+       
+                       except httpx.RequestError as req_err:
+                           err_msg = _mask_sensitive(str(req_err), api_key)
+                           logger.error("Erro de conexão com Evolution API em '%s': %s", url, err_msg)
+                           raise
+       
+           if last_response is not None and last_response.is_error:
+               clean_resp = _mask_sensitive(last_response.text, api_key)
+               error_msg = f"Evolution API {last_response.status_code} Error: {clean_resp}"
+               logger.error("Falha definitiva no envio para '%s': %s", to, error_msg)
+               raise httpx.HTTPStatusError(
+                   message=error_msg,
+                   request=last_response.request,
+                   response=last_response,
+               )
+       
+       
+    1: async def send_media(to: str, media_path_or_url: str | Path, caption: str = "") -> None:
+           """Envia uma mídia (GIF, vídeo, imagem) via Evolution API com legenda opcional.
+           Trata erros executando diagnóstico e fallbacks (variantes de número BR e payloads v1/v2).
+       
+           Args:
+               to: JID do destinatário, ex: '5511999999999@s.whatsapp.net'
+               media_path_or_url: Caminho do arquivo local ou URL pública da mídia.
+               caption: Legenda/texto da mensagem.
+           """
+    1:     base_url, api_key, instance = _get_evolution_config()
+    1:     encoded_instance = quote(instance, safe="")
+    1:     url = f"{base_url}/message/sendMedia/{encoded_instance}"
+    1:     headers = {"apikey": api_key, "Content-Type": "application/json"}
+       
+    1:     mediatype, mimetype, file_name, media_value, is_gif = _prepare_media_payload(media_path_or_url, caption)
+    1:     candidates = [to] + _get_alternative_recipients(to)
+    1:     last_response: httpx.Response | None = None
+       
+    2:     async with httpx.AsyncClient(timeout=30.0) as client:
+    1:         for candidate in candidates:
+    2:             payloads = _build_media_payloads(
+    1:                 to=candidate,
+    1:                 mediatype=mediatype,
+    1:                 mimetype=mimetype,
+    1:                 caption=caption,
+    1:                 media_value=media_value,
+    1:                 file_name=file_name,
+    1:                 is_gif=is_gif,
+                   )
+    1:             for payload in payloads:
+    1:                 try:
+    1:                     response = await client.post(url, json=payload, headers=headers)
+    1:                     last_response = response
+       
+    1:                     if not response.is_error:
+    1:                         resp_summary = _mask_sensitive(response.text[:200], api_key)
+    1:                         if candidate != to:
+                                   logger.info(
+                                       "Mídia enviada com sucesso utilizando fallback para '%s' (original: '%s') - Status %d: %s",
+                                       candidate,
+                                       to,
+                                       response.status_code,
+                                       resp_summary,
+                                   )
+                               else:
+    2:                             logger.info(
+    1:                                 "Mídia enviada com sucesso para '%s' - Status %d: %s",
+    1:                                 candidate,
+    1:                                 response.status_code,
+    1:                                 resp_summary,
+                                   )
+    1:                         return
+       
+                           resp_body = _mask_sensitive(response.text, api_key)
+                           logger.warning(
+                               "Evolution API 400 Bad Request ao enviar mídia para '%s' (payload=%s): %s",
+                               candidate,
+                               list(payload.keys()),
+                               resp_body,
+                           )
+       
+                           if "mediaMessage" in resp_body:
+                               continue
+       
+                       except httpx.RequestError as req_err:
+                           err_msg = _mask_sensitive(str(req_err), api_key)
+                           logger.error("Erro de conexão com Evolution API ao enviar mídia em '%s': %s", url, err_msg)
+                           raise
+       
+           if last_response is not None and last_response.is_error:
+               clean_resp = _mask_sensitive(last_response.text, api_key)
+               error_msg = f"Evolution API {last_response.status_code} Error: {clean_resp}"
+               logger.error("Falha definitiva no envio de mídia para '%s': %s", to, error_msg)
+               raise httpx.HTTPStatusError(
+                   message=error_msg,
+                   request=last_response.request,
+                   response=last_response,
+               )
+       
+       
+    1: def send_media_sync(to: str, media_path_or_url: str | Path, caption: str = "") -> None:
+           """Versão síncrona de envio de mídia para retrocompatibilidade."""
+    2:     base_url, api_key, instance = _get_evolution_config()
+    2:     encoded_instance = quote(instance, safe="")
+    2:     url = f"{base_url}/message/sendMedia/{encoded_instance}"
+    2:     headers = {"apikey": api_key, "Content-Type": "application/json"}
+       
+    2:     mediatype, mimetype, file_name, media_value, is_gif = _prepare_media_payload(media_path_or_url, caption)
+    2:     candidates = [to] + _get_alternative_recipients(to)
+    2:     last_response: httpx.Response | None = None
+       
+    4:     with httpx.Client(timeout=30.0) as client:
+    4:         for candidate in candidates:
+    6:             payloads = _build_media_payloads(
+    3:                 to=candidate,
+    3:                 mediatype=mediatype,
+    3:                 mimetype=mimetype,
+    3:                 caption=caption,
+    3:                 media_value=media_value,
+    3:                 file_name=file_name,
+    3:                 is_gif=is_gif,
+                   )
+   11:             for payload in payloads:
+    9:                 try:
+    9:                     response = client.post(url, json=payload, headers=headers)
+    9:                     last_response = response
+       
+    9:                     if not response.is_error:
+    1:                         resp_summary = _mask_sensitive(response.text[:200], api_key)
+    1:                         if candidate != to:
+                                   logger.info(
+                                       "Mídia enviada com sucesso utilizando fallback para '%s' (original: '%s') - Status %d: %s",
+                                       candidate,
+                                       to,
+                                       response.status_code,
+                                       resp_summary,
+                                   )
+                               else:
+    2:                             logger.info(
+    1:                                 "Mídia enviada com sucesso para '%s' - Status %d: %s",
+    1:                                 candidate,
+    1:                                 response.status_code,
+    1:                                 resp_summary,
+                                   )
+    1:                         return
+       
+    8:                     resp_body = _mask_sensitive(response.text, api_key)
+   16:                     logger.warning(
+    8:                         "Evolution API 400 Bad Request ao enviar mídia para '%s' (payload=%s): %s",
+    8:                         candidate,
+    8:                         list(payload.keys()),
+    8:                         resp_body,
+                           )
+       
+    8:                     if "mediaMessage" in resp_body:
+                               continue
+       
+                       except httpx.RequestError as req_err:
+                           err_msg = _mask_sensitive(str(req_err), api_key)
+                           logger.error("Erro de conexão com Evolution API ao enviar mídia em '%s': %s", url, err_msg)
+                           raise
+       
+    1:     if last_response is not None and last_response.is_error:
+    1:         clean_resp = _mask_sensitive(last_response.text, api_key)
+    1:         error_msg = f"Evolution API {last_response.status_code} Error: {clean_resp}"
+    1:         logger.error("Falha definitiva no envio de mídia para '%s': %s", to, error_msg)
+    2:         raise httpx.HTTPStatusError(
+    1:             message=error_msg,
+    1:             request=last_response.request,
+    1:             response=last_response,
+               )

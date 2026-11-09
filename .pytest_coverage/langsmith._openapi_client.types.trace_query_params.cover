@@ -1,0 +1,70 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from __future__ import annotations
+       
+    1: from typing import List, Union
+    1: from datetime import datetime
+    1: from typing_extensions import Annotated, TypedDict
+       
+    1: from .._types import SequenceNotStr
+    1: from .._utils import PropertyInfo
+    1: from .run_select_field import RunSelectField
+       
+    1: __all__ = ["TraceQueryParams"]
+       
+       
+    2: class TraceQueryParams(TypedDict, total=False):
+    1:     cursor: str
+    1:     """`cursor` is the opaque string returned in a previous response's `next_cursor`."""
+       
+    1:     max_start_time: Annotated[Union[str, datetime], PropertyInfo(format="iso8601")]
+    1:     """
+           `max_start_time` is the exclusive upper bound for the root-run start time scan
+           (RFC3339). Defaults to the request time when omitted.
+           """
+       
+    1:     min_start_time: Annotated[Union[str, datetime], PropertyInfo(format="iso8601")]
+    1:     """
+           `min_start_time` is the inclusive lower bound for the root-run start time scan
+           (RFC3339). Defaults to 24 hours before the request when omitted.
+           """
+       
+    1:     page_size: int
+    1:     """`page_size` is the maximum number of traces to return per page.
+       
+           Defaults to 20; must be between 1 and 100 when set.
+           """
+       
+    1:     project_id: str
+    1:     """`project_id` is the UUID of the tracing project that owns the traces. Required."""
+       
+    1:     selects: List[RunSelectField]
+    1:     """`selects` lists which properties to include on each returned trace.
+       
+           Properties listed here are routed to the appropriate sub-object on each item:
+           `total_tokens`, `total_cost`, and `first_token_time` appear under
+           `trace_aggregates`; everything else appears under `root_run`. If omitted, only
+           `id` is returned on `root_run`.
+           """
+       
+    1:     trace_filter: str
+    1:     """
+           `trace_filter` narrows results to traces whose root run matches this LangSmith
+           filter expression. This filter targets root runs only — `is_root = true` is
+           implied. See
+           https://docs.langchain.com/langsmith/trace-query-syntax#filter-query-language
+           for syntax.
+           """
+       
+    1:     trace_ids: SequenceNotStr[str]
+    1:     """`trace_ids` is an optional fast-path restriction to a known set of trace UUIDs.
+       
+           Equivalent in result to including each UUID in a `trace_filter`, but more
+           efficient at scale.
+           """
+       
+    1:     tree_filter: str
+    1:     """
+           `tree_filter` narrows results to traces containing at least one run anywhere in
+           the run tree (root or descendant) that matches this LangSmith filter expression.
+           """

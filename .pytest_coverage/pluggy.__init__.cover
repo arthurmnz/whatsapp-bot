@@ -1,0 +1,38 @@
+    1: __all__ = [
+           "HookCallError",
+           "HookCaller",
+           "HookImpl",
+           "HookRelay",
+           "HookimplMarker",
+           "HookimplOpts",
+           "HookspecMarker",
+           "HookspecOpts",
+           "PluggyTeardownRaisedWarning",
+           "PluggyWarning",
+           "PluginManager",
+           "PluginValidationError",
+           "Result",
+           "__version__",
+       ]
+    1: from ._hooks import HookCaller
+    1: from ._hooks import HookImpl
+    1: from ._hooks import HookimplMarker
+    1: from ._hooks import HookimplOpts
+    1: from ._hooks import HookRelay
+    1: from ._hooks import HookspecMarker
+    1: from ._hooks import HookspecOpts
+    1: from ._manager import PluginManager
+    1: from ._manager import PluginValidationError
+    1: from ._result import HookCallError
+    1: from ._result import Result
+    1: from ._warnings import PluggyTeardownRaisedWarning
+    1: from ._warnings import PluggyWarning
+       
+       
+    1: def __getattr__(name: str) -> str:
+    9:     if name == "__version__":
+    1:         from importlib.metadata import version
+       
+    1:         return version("pluggy")
+       
+    8:     raise AttributeError(f"module {__name__} has no attribute {name!r}")

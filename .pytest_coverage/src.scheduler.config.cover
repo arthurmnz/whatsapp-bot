@@ -1,0 +1,99 @@
+    1: import json
+    1: import logging
+    1: import os
+    1: import re
+    1: from pathlib import Path
+    1: from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+       
+    1: from apscheduler.triggers.cron import CronTrigger
+    1: from pydantic import BaseModel, Field, field_validator
+       
+    1: logger = logging.getLogger(__name__)
+       
+    1: RE_RECIPIENT = re.compile(r"^\+?(\d{8,20})(@(s\.whatsapp\.net|g\.us))?$")
+       
+       
+   20: class ScheduledJob(BaseModel):
+    3:     id: str = Field(..., min_length=1, description="Identificador único do job")
+    3:     name: str = Field(..., min_length=1, description="Nome legível do job")
+    3:     enabled: bool = Field(default=True, description="Indica se o job deve ser agendado")
+    3:     cron: str = Field(..., description="Expressão crontab com 5 campos (minuto hora dia mês dia_semana)")
+    3:     recipients: list[str] = Field(..., min_length=1, description="Lista de destinatários válidos")
+    3:     message: str = Field(..., min_length=1, description="Template da mensagem")
+    4:     delay_seconds: float = Field(
+    1:         default=1.0,
+    1:         ge=0.0,
+    1:         description="Intervalo em segundos entre envios múltiplos para rate limiting defensivo",
+           )
+       
+    2:     @field_validator("cron")
+    2:     @classmethod
+    3:     def validate_cron_expression(cls, v: str) -> str:
+   20:         clean = v.strip()
+   20:         try:
+   20:             CronTrigger.from_crontab(clean)
+    4:         except Exception as exc:
+    4:             raise ValueError(f"Expressão cron inválida '{v}': {exc}") from exc
+   16:         return clean
+       
+    2:     @field_validator("recipients")
+    2:     @classmethod
+    3:     def validate_and_sanitize_recipients(cls, v: list[str]) -> list[str]:
+   19:         if not v:
+                   raise ValueError("A lista de destinatários não pode ser vazia.")
+       
+   19:         sanitized: list[str] = []
+   38:         for r in v:
+   23:             clean = r.strip()
+   23:             match = RE_RECIPIENT.match(clean)
+   23:             if not match:
+    8:                 raise ValueError(
+    4:                     f"Destinatário inválido '{clean}'. "
+                           f"Forneça um número com DDI/DDD ou um JID válido (@s.whatsapp.net ou @g.us)."
+                       )
+   19:             number = match.group(1)
+   19:             domain = match.group(2)
+   19:             if domain:
+    6:                 sanitized.append(f"{number}{domain}")
+                   else:
+   13:                 sanitized.append(f"{number}@s.whatsapp.net")
+   15:         return sanitized
+       
+       
+   10: class SchedulerConfig(BaseModel):
+    3:     timezone: str = Field(default="America/Sao_Paulo", description="Fuso horário dos agendamentos")
+    3:     jobs: list[ScheduledJob] = Field(default_factory=list, description="Lista de jobs configurados")
+       
+    2:     @field_validator("timezone")
+    2:     @classmethod
+    3:     def validate_timezone(cls, v: str) -> str:
+    4:         clean = v.strip()
+    4:         try:
+    4:             ZoneInfo(clean)
+               except ZoneInfoNotFoundError:
+                   raise ValueError(f"Timezone desconhecido ou inválido: '{v}'")
+    4:         return clean
+       
+       
+    1: def load_scheduler_config(path: str | Path | None = None) -> SchedulerConfig:
+           """Carrega o arquivo de configuração de agendamento de mensagens.
+       
+           Se o arquivo não existir, retorna uma configuração segura vazia com o timezone configurado.
+           """
+    4:     config_path = Path(path or os.getenv("SCHEDULED_MESSAGES_PATH", "config/scheduled_messages.json"))
+    4:     default_tz = os.getenv("SCHEDULER_TIMEZONE", "America/Sao_Paulo")
+       
+    4:     if not config_path.is_file():
+    2:         logger.warning(
+    1:             "Arquivo de agendamento '%s' não encontrado. Scheduler inicializado sem jobs ativos.",
+    1:             config_path,
+               )
+    1:         return SchedulerConfig(timezone=default_tz, jobs=[])
+       
+    3:     try:
+    6:         with open(config_path, "r", encoding="utf-8") as f:
+    3:             data = json.load(f)
+    2:         return SchedulerConfig.model_validate(data)
+    1:     except Exception as exc:
+    1:         logger.error("Erro ao carregar configuração de agendamento em '%s': %s", config_path, exc)
+    1:         raise

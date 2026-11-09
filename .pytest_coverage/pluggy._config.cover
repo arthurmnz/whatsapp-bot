@@ -1,0 +1,54 @@
+    1: """
+       Configuration types for hook specifications and implementations.
+       """
+       
+    1: from __future__ import annotations
+       
+    1: from collections.abc import Mapping
+    1: from typing import TypedDict
+       
+       
+    2: class HookspecOpts(TypedDict):
+    1:     """Options for a hook specification."""
+       
+           #: Whether the hook is :ref:`first result only <firstresult>`.
+    1:     firstresult: bool
+           #: Whether the hook is :ref:`historic <historic>`.
+    1:     historic: bool
+           #: Whether the hook :ref:`warns when implemented <warn_on_impl>`.
+    1:     warn_on_impl: Warning | None
+           #: Whether the hook warns when :ref:`certain arguments are requested
+           #: <warn_on_impl>`.
+           #:
+           #: .. versionadded:: 1.5
+    1:     warn_on_impl_args: Mapping[str, Warning] | None
+       
+       
+    2: class HookimplOpts(TypedDict):
+    1:     """Options for a hook implementation."""
+       
+           #: Whether the hook implementation is a :ref:`wrapper <hookwrapper>`.
+    1:     wrapper: bool
+           #: Whether the hook implementation is an :ref:`old-style wrapper
+           #: <old_style_hookwrappers>`.
+    1:     hookwrapper: bool
+           #: Whether validation against a hook specification is :ref:`optional
+           #: <optionalhook>`.
+    1:     optionalhook: bool
+           #: Whether to try to order this hook implementation :ref:`first
+           #: <callorder>`.
+    1:     tryfirst: bool
+           #: Whether to try to order this hook implementation :ref:`last
+           #: <callorder>`.
+    1:     trylast: bool
+           #: The name of the hook specification to match, see :ref:`specname`.
+    1:     specname: str | None
+       
+       
+    1: def normalize_hookimpl_opts(opts: HookimplOpts) -> None:
+  193:     opts.setdefault("tryfirst", False)
+  193:     opts.setdefault("trylast", False)
+  193:     opts.setdefault("wrapper", False)
+  193:     opts.setdefault("hookwrapper", False)
+  193:     opts.setdefault("optionalhook", False)
+  193:     opts.setdefault("specname", None)

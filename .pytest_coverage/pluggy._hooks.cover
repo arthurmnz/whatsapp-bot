@@ -1,0 +1,47 @@
+    1: """
+       Internal hook annotation, representation and calling machinery.
+       
+       This module re-exports symbols from the role-specific modules for
+       backward compatibility.
+       """
+       
+    1: from __future__ import annotations
+       
+    1: from ._caller import _HookCaller
+    1: from ._caller import _HookExec
+    1: from ._caller import _HookRelay
+    1: from ._caller import _SubsetHookCaller
+    1: from ._caller import HookCaller
+    1: from ._caller import HookRelay
+    1: from ._config import HookimplOpts
+    1: from ._config import HookspecOpts
+    1: from ._config import normalize_hookimpl_opts
+    1: from ._decorators import _Namespace
+    1: from ._decorators import HookimplMarker
+    1: from ._decorators import HookSpec
+    1: from ._decorators import HookspecMarker
+    1: from ._decorators import varnames
+    1: from ._impl import _HookImplFunction
+    1: from ._impl import _Plugin
+    1: from ._impl import HookImpl
+       
+       
+    1: __all__ = [
+           "HookCaller",
+           "HookImpl",
+           "HookRelay",
+           "HookSpec",
+           "HookimplMarker",
+           "HookimplOpts",
+           "HookspecMarker",
+           "HookspecOpts",
+           "_HookCaller",
+           "_HookExec",
+           "_HookImplFunction",
+           "_HookRelay",
+           "_Namespace",
+           "_Plugin",
+           "_SubsetHookCaller",
+           "normalize_hookimpl_opts",
+           "varnames",
+       ]

@@ -1,0 +1,16 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from typing import Optional
+       
+    1: from .._models import BaseModel
+       
+    1: __all__ = ["DownloadURLResponse"]
+       
+       
+   12: class DownloadURLResponse(BaseModel):
+    2:     token: str
+       
+    2:     download_url: str
+       
+    3:     expires_at: Optional[str] = None
+    1:     """ExpiresAt is null for a link that never expires."""

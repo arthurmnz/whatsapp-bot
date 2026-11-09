@@ -1,0 +1,28 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from typing import List, Optional
+       
+    1: from .._models import BaseModel
+    1: from .sandbox_response import SandboxResponse
+       
+    1: __all__ = ["SandboxListResponse"]
+       
+       
+   14: class SandboxListResponse(BaseModel):
+    3:     items: Optional[List[SandboxResponse]] = None
+    1:     """This page of sandboxes."""
+       
+    3:     next_cursor: Optional[str] = None
+    1:     """Cursor for the next page, or null on the last page.
+       
+           A non-null value is the only signal that more pages exist. Treat it as opaque.
+           """
+       
+    3:     offset: Optional[int] = None
+    1:     """Deprecated: use next_cursor.
+       
+           Offset to request for the next page, or 0 when no pages remain.
+           """
+       
+    3:     sandboxes: Optional[List[SandboxResponse]] = None
+    1:     """Deprecated: use items. Duplicates items."""

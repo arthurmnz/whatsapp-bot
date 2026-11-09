@@ -1,0 +1,18 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from __future__ import annotations
+       
+    1: from typing_extensions import Required, TypedDict
+       
+    1: __all__ = ["RunGetURLParams"]
+       
+       
+    2: class RunGetURLParams(TypedDict, total=False):
+    1:     project_id: Required[str]
+    1:     """Project (session) UUID"""
+       
+    1:     trace_id: Required[str]
+    1:     """Trace UUID"""
+       
+    1:     start_time: str
+    1:     """Run start time in RFC3339 format; omit if unknown"""

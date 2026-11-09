@@ -1,0 +1,105 @@
+    1: from .__version__ import __description__, __title__, __version__
+    1: from ._api import *
+    1: from ._auth import *
+    1: from ._client import *
+    1: from ._config import *
+    1: from ._content import *
+    1: from ._exceptions import *
+    1: from ._models import *
+    1: from ._status_codes import *
+    1: from ._transports import *
+    1: from ._types import *
+    1: from ._urls import *
+       
+    1: try:
+    1:     from ._main import main
+       except ImportError:  # pragma: no cover
+       
+           def main() -> None:  # type: ignore
+               import sys
+       
+               print(
+                   "The httpx command line client could not run because the required "
+                   "dependencies were not installed.\nMake sure you've installed "
+                   "everything with: pip install 'httpx[cli]'"
+               )
+               sys.exit(1)
+       
+       
+   70: __all__ = [
+    1:     "__description__",
+    1:     "__title__",
+    1:     "__version__",
+    1:     "ASGITransport",
+    1:     "AsyncBaseTransport",
+    1:     "AsyncByteStream",
+    1:     "AsyncClient",
+    1:     "AsyncHTTPTransport",
+    1:     "Auth",
+    1:     "BaseTransport",
+    1:     "BasicAuth",
+    1:     "ByteStream",
+    1:     "Client",
+    1:     "CloseError",
+    1:     "codes",
+    1:     "ConnectError",
+    1:     "ConnectTimeout",
+    1:     "CookieConflict",
+    1:     "Cookies",
+    1:     "create_ssl_context",
+    1:     "DecodingError",
+    1:     "delete",
+    1:     "DigestAuth",
+    1:     "get",
+    1:     "head",
+    1:     "Headers",
+    1:     "HTTPError",
+    1:     "HTTPStatusError",
+    1:     "HTTPTransport",
+    1:     "InvalidURL",
+    1:     "Limits",
+    1:     "LocalProtocolError",
+    1:     "main",
+    1:     "MockTransport",
+    1:     "NetRCAuth",
+    1:     "NetworkError",
+    1:     "options",
+    1:     "patch",
+    1:     "PoolTimeout",
+    1:     "post",
+    1:     "ProtocolError",
+    1:     "Proxy",
+    1:     "ProxyError",
+    1:     "put",
+    1:     "QueryParams",
+    1:     "ReadError",
+    1:     "ReadTimeout",
+    1:     "RemoteProtocolError",
+    1:     "request",
+    1:     "Request",
+    1:     "RequestError",
+    1:     "RequestNotRead",
+    1:     "Response",
+    1:     "ResponseNotRead",
+    1:     "stream",
+    1:     "StreamClosed",
+    1:     "StreamConsumed",
+    1:     "StreamError",
+    1:     "SyncByteStream",
+    1:     "Timeout",
+    1:     "TimeoutException",
+    1:     "TooManyRedirects",
+    1:     "TransportError",
+    1:     "UnsupportedProtocol",
+    1:     "URL",
+    1:     "USE_CLIENT_DEFAULT",
+    1:     "WriteError",
+    1:     "WriteTimeout",
+    1:     "WSGITransport",
+       ]
+       
+       
+    1: __locals = locals()
+   70: for __name in __all__:
+   69:     if not __name.startswith("__"):
+   66:         setattr(__locals[__name], "__module__", "httpx")  # noqa

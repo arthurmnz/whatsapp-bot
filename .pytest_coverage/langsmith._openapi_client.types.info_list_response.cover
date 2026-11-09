@@ -1,0 +1,53 @@
+       # File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+       
+    1: from typing import Dict, Optional
+       
+    1: from .._models import BaseModel
+       
+    1: __all__ = ["InfoListResponse", "BatchIngestConfig", "CustomerInfo", "SDKVersions"]
+       
+       
+   18: class BatchIngestConfig(BaseModel):
+    3:     scale_down_nempty_trigger: Optional[int] = None
+       
+    3:     scale_up_nthreads_limit: Optional[int] = None
+       
+    3:     scale_up_qsize_trigger: Optional[int] = None
+       
+    3:     size_limit: Optional[int] = None
+       
+    3:     size_limit_bytes: Optional[int] = None
+       
+    3:     use_multipart_endpoint: Optional[bool] = None
+       
+       
+   10: class CustomerInfo(BaseModel):
+    3:     customer_id: Optional[str] = None
+       
+    3:     customer_name: Optional[str] = None
+       
+       
+   14: class SDKVersions(BaseModel):
+    3:     max_go_sdk_version: Optional[str] = None
+       
+    3:     max_java_sdk_version: Optional[str] = None
+       
+    3:     max_js_sdk_version: Optional[str] = None
+       
+    3:     max_python_sdk_version: Optional[str] = None
+       
+       
+   20: class InfoListResponse(BaseModel):
+    3:     batch_ingest_config: Optional[BatchIngestConfig] = None
+       
+    3:     customer_info: Optional[CustomerInfo] = None
+       
+    3:     git_sha: Optional[str] = None
+       
+    3:     instance_flags: Optional[Dict[str, object]] = None
+       
+    3:     license_expiration_time: Optional[str] = None
+       
+    3:     sdk_versions: Optional[SDKVersions] = None
+       
+    3:     version: Optional[str] = None
