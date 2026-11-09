@@ -9,6 +9,8 @@ from fastapi import FastAPI, HTTPException, Request
 from src.evolution_client import send_text
 from src.memory import append_messages, clear_history, get_history
 
+PORT = os.environ.get("PORT", 5000)
+
 logger = logging.getLogger(__name__)
 
 
@@ -91,4 +93,4 @@ async def evolution_webhook(request: Request):
 
 if __name__ == "__main__":
     print("C3PO rodando na porta 5000...")
-    uvicorn.run(app, host="0.0.0.0", port=5000)
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
