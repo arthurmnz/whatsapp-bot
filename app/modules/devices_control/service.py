@@ -63,7 +63,7 @@ def wake_windows_sync() -> dict[str, Any]:
         }
 
     try:
-        wakeonlan.wake(os.environ.get("WIN_MNZ_MAC"))
+        wakeonlan.send_magic_packet(config.mac, ip_address=config.broadcast)
 
         logger.info("Magic Packet WOL enviado para MAC %s (%s:%d)", config.mac, config.broadcast, config.port)
         return {
