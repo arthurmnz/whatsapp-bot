@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from pydantic import ValidationError
 
-from src.scheduler.config import ScheduledJob, SchedulerConfig, load_scheduler_config
-from src.scheduler.service import (
+from app.modules.scheduler.config import ScheduledJob, SchedulerConfig, load_scheduler_config
+from app.modules.scheduler.service import (
     CronScheduler,
     dispatch_job,
     render_message,
@@ -158,7 +158,7 @@ async def test_dispatch_job_success_text_only():
         delay_seconds=0.01,
     )
 
-    with patch("src.scheduler.service.send_text", new_callable=AsyncMock) as mock_send_text:
+    with patch("app.modules.scheduler.service.send_text", new_callable=AsyncMock) as mock_send_text:
         await dispatch_job(job)
         assert mock_send_text.call_count == 2
         calls = [c.kwargs for c in mock_send_text.call_args_list]

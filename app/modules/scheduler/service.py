@@ -6,8 +6,8 @@ from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from src.evolution_client import send_text
-from src.scheduler.config import ScheduledJob, SchedulerConfig
+from app.integrations.evolution import send_text
+from app.modules.scheduler.config import ScheduledJob, SchedulerConfig
 
 logger = logging.getLogger(__name__)
 

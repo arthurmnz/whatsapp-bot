@@ -7,10 +7,10 @@ from fastapi.testclient import TestClient
 import httpx
 import pytest
 
-from src.evolution_client import _get_evolution_config
-from src.scheduler.config import load_scheduler_config
-from src.scheduler.service import CronScheduler, render_message
-from src.webhook import app
+from app.integrations.evolution.client import _get_evolution_config
+from app.main import app
+from app.modules.scheduler.config import load_scheduler_config
+from app.modules.scheduler.service import CronScheduler, render_message
 
 
 def test_fastapi_lifespan_starts_scheduler():

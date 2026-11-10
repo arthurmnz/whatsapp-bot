@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from src.evolution_client import (
+from app.integrations.evolution.client import (
     _build_payloads,
     _get_alternative_recipients,
     _mask_sensitive,

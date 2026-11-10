@@ -6,8 +6,8 @@ import sys
 
 from dotenv import load_dotenv
 
-from src.scheduler.config import load_scheduler_config
-from src.scheduler.service import CronScheduler
+from app.modules.scheduler.config import load_scheduler_config
+from app.modules.scheduler.service import CronScheduler
 
 load_dotenv()
 

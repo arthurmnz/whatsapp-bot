@@ -1,7 +1,7 @@
 ---
 name: developer
 description: "Único agente com permissão de escrita e alteração de arquivos de código."
-model: claude-sonnet
+model: inherit
 mainAgent: false
 subagent: true
 tools:

@@ -12,9 +12,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copia o código da aplicação e configurações
-COPY src/ ./src/
+COPY app/ ./app/
 COPY config/ ./config/
 
 EXPOSE 5000
 
-CMD ["uvicorn", "src.webhook:app", "--host", "0.0.0.0", "--port", "5000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5000"]

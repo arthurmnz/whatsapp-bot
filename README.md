@@ -6,14 +6,14 @@ Bot inteligente para WhatsApp integrado à **Evolution API**, desenvolvido em Py
 
 ## 🚀 Funcionalidades Principais
 
-### 1. Client Evolution API (`src/evolution_client.py`)
+### 1. Client Evolution API (`app/integrations/evolution/client.py`)
 - **Envio Assíncrono e Síncrono:** Funções `send_text` (usando `httpx.AsyncClient`) e `send_text_sync` (usando `httpx.Client`).
 - **Fallback Automático de Payload:** Tenta primeiro a estrutura v2 (`{"number": to, "text": text}`); caso receba status 400 por incompatibilidade de schema, realiza fallback transparente para o formato v1 (`{"textMessage": {"text": text}, "options": {...}}`).
 - **Resolução Automática do 9º Dígito (Brasil):** Fallback automático entre 8 e 9 dígitos para destinatários brasileiros (DDI 55), convertendo números conforme a disponibilidade na operadora/WhatsApp.
 - **Segurança e Redação de Segredos:** Mascaramento de chaves de API (`***REDACTED***`) em mensagens de log, headers e exceções `httpx.HTTPStatusError`.
 - **Validação Estrita:** Proteção contra injeção de caracteres de controle (`\r`, `\n`, `\0`) nos destinatários e timeout configurado para evitar bloqueios de rede.
 
-### 2. Agendador de Mensagens / Cron Jobs (`src/scheduler/`)
+### 2. Agendador de Mensagens / Cron Jobs (`app/modules/scheduler/`)
 - **Modelagem e Validação Pydantic v2:**
   - Validação estrita de expressões Cron Unix de 5 campos via APScheduler `CronTrigger`.
   - Sanitização de destinatários (contatos `@s.whatsapp.net` e grupos `@g.us`, rejeitando caracteres inválidos e garantindo contatos numéricos válidos).
@@ -26,7 +26,7 @@ Bot inteligente para WhatsApp integrado à **Evolution API**, desenvolvido em Py
 - **APScheduler Integrado:** Gerenciamento de tarefas em background (`CronScheduler`) com disparo sequencial e intervalo configurável (`delay_seconds`).
 - **Runner Independente:** CLI autônoma com controle de ciclo de vida e encerramento gracioso via sinais `SIGINT`/`SIGTERM`.
 
-### 3. Webhook & Agente Conversacional (`src/webhook.py`, `src/memory.py`, `src/agent/`)
+### 3. Webhook & Agente Conversacional (`app/main.py`, `app/api/webhook.py`, `app/core/memory.py`, `app/agent/`)
 - **Servidor FastAPI:** Endpoint `/webhook` para receber eventos `messages.upsert` da Evolution API.
 - **Gerenciamento de Histórico:** Armazenamento de turnos no Redis com expiração automática (TTL) e comandos de reset (`/limpar`, `/clear`, `/reset`).
 - **Agente LangChain / OpenRouter:** Estrutura para processamento de linguagem natural e chamada de ferramentas (Tool Calling).
@@ -38,26 +38,40 @@ Bot inteligente para WhatsApp integrado à **Evolution API**, desenvolvido em Py
 ```text
 whatsApp-bot/
 ├── config/
-│   └── scheduled_messages.json     # Configuração dos jobs agendados
-├── src/
-│   ├── evolution_client.py         # Client HTTP (síncrono/assíncrono) para Evolution API
-│   ├── memory.py                   # Gerenciamento de memória e histórico no Redis
-│   ├── webhook.py                  # Servidor FastAPI para recepção de webhooks
+│   └── scheduled_messages.json         # Configuração dos jobs agendados
+├── app/
+│   ├── main.py                         # Ponto de entrada FastAPI e lifespan do scheduler
+│   ├── api/
+│   │   ├── __init__.py
+│   │   └── webhook.py                  # Rotas de recepção de webhooks (/webhook)
+│   ├── core/
+│   │   ├── __init__.py
+│   │   └── memory.py                   # Gerenciamento de memória e histórico no Redis
 │   ├── agent/
 │   │   ├── __init__.py
-│   │   └── agent.py                # Agente LangChain/OpenRouter e ferramentas
-│   └── scheduler/
-│       ├── __init__.py             # Exportações públicas do módulo
-│       ├── config.py               # Modelos Pydantic v2 e parser de configuração
-│       ├── runner.py               # Processo de execução independente do agendador
-│       └── service.py              # CronScheduler, renderizador e despachador
+│   │   ├── agent.py                    # Agente LangChain/OpenRouter e ferramentas
+│   │   └── memory.py                   # Re-export de memória para o módulo agent
+│   ├── modules/
+│   │   ├── __init__.py
+│   │   └── scheduler/
+│   │       ├── __init__.py             # Exportações públicas do módulo
+│   │       ├── config.py               # Modelos Pydantic v2 e parser de configuração
+│   │       ├── runner.py               # Processo de execução independente do agendador
+│   │       └── service.py              # CronScheduler, renderizador e despachador
+│   └── integrations/
+│       ├── __init__.py
+│       └── evolution/
+│           ├── __init__.py             # Exportações públicas (send_text, send_text_sync)
+│           └── client.py               # Client HTTP (síncrono/assíncrono) para Evolution API
 ├── tests/
-│   ├── test_evolution_client.py    # Testes unitários do client da Evolution API
-│   └── test_scheduler.py           # Testes unitários do scheduler e Pydantic
-├── docker-compose.yml              # Orquestração do agente e serviço Redis
-├── Dockerfile                      # Imagem do container da aplicação
-├── requirements.txt                # Dependências Python do projeto
-└── README.md                       # Documentação do projeto
+│   ├── test_app_structure.py           # Testes da estrutura arquitetural app/
+│   ├── test_cron_integration.py        # Testes de integração do lifespan e cron
+│   ├── test_evolution_client.py        # Testes unitários do client da Evolution API
+│   └── test_scheduler.py               # Testes unitários do scheduler e Pydantic
+├── docker-compose.yml                  # Orquestração do agente e serviço Redis
+├── Dockerfile                          # Imagem do container da aplicação
+├── requirements.txt                    # Dependências Python do projeto
+└── README.md                           # Documentação do projeto
 ```
 
 ---
@@ -105,7 +119,7 @@ Você pode importar e utilizar o client diretamente em seus scripts ou módulos:
 #### Envio Assíncrono (`send_text`):
 ```python
 import asyncio
-from src.evolution_client import send_text
+from app.integrations.evolution import send_text
 
 async def main():
     resposta = await send_text(
@@ -119,7 +133,7 @@ asyncio.run(main())
 
 #### Envio Síncrono (`send_text_sync`):
 ```python
-from src.evolution_client import send_text_sync
+from app.integrations.evolution import send_text_sync
 
 resposta = send_text_sync(
     to="5511999999999",
@@ -156,12 +170,12 @@ Edite o arquivo `config/scheduled_messages.json` para definir as mensagens e hor
 Para iniciar o processo do agendador:
 
 ```bash
-python -m src.scheduler.runner
+python -m app.modules.scheduler.runner
 ```
 
 *(Opcional) Passe o caminho de um arquivo de configuração alternativo:*
 ```bash
-python -m src.scheduler.runner caminho/para/outro_config.json
+python -m app.modules.scheduler.runner caminho/para/outro_config.json
 ```
 
 ---
@@ -172,7 +186,7 @@ Para iniciar o servidor FastAPI e receber eventos de mensagens do WhatsApp:
 
 ```bash
 # Execução direta com uvicorn
-uvicorn src.webhook:app --host 0.0.0.0 --port 5000 --reload
+uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload
 ```
 
 Ou através do **Docker Compose** (inicia a aplicação e o Redis):

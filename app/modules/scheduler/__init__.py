@@ -1,5 +1,5 @@
-from src.scheduler.config import ScheduledJob, SchedulerConfig, load_scheduler_config
-from src.scheduler.service import (
+from app.modules.scheduler.config import ScheduledJob, SchedulerConfig, load_scheduler_config
+from app.modules.scheduler.service import (
     CronScheduler,
     dispatch_job,
     render_message,
