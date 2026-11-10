@@ -4,7 +4,7 @@ import traceback
 from fastapi import APIRouter, HTTPException, Request
 
 # from app.agent.agent import agent_executor
-from app.core.memory import append_messages, clear_history, get_history
+from app.core.memory import append_messages
 from app.integrations.evolution import send_text
 from app.modules.devices_control import (
     get_windows_status,
@@ -60,7 +60,7 @@ async def evolution_webhook(request: Request):
         if cmd == "/help":
             res = send_text(
                 to=remote_jid,
-                text="💻 Comandos disponíveis:\n" + "\n".join([f"{c} - {desc}" for c, desc in commands.items()]),
+                text="💻 Comandos disponíveis:\n" + "\n".join([f"- *{c}* - {desc}" for c, desc in commands.items()]),
             )
             if inspect.isawaitable(res):
                 await res
