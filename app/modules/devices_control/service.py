@@ -4,7 +4,7 @@ import logging
 import os
 import socket
 from typing import Any
-from wakeonlan import send_magic_packet
+import wakeonlan
 import paramiko
 
 from app.modules.devices_control.config import (
@@ -63,7 +63,7 @@ def wake_windows_sync() -> dict[str, Any]:
         }
 
     try:
-        send_magic_packet(config.mac)
+        wakeonlan.wake(config.mac)
 
         logger.info("Magic Packet WOL enviado para MAC %s (%s:%d)", config.mac, config.broadcast, config.port)
         return {
