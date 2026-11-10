@@ -126,6 +126,7 @@ def shutdown_windows_sync() -> dict[str, Any]:
 
     try:
         out_str, err_str = _run_ssh_command(SHUTDOWN_COMMAND, config)
+        logger.info("Comando de desligamento enviado via SSH para %s (%s)", config.ip, config.user)
         return {
             "success": True,
             "action": "shutdown",
@@ -176,6 +177,7 @@ def restart_windows_sync() -> dict[str, Any]:
 
     try:
         out_str, err_str = _run_ssh_command(RESTART_COMMAND, config)
+        logger.info("Comando de reinicialização enviado via SSH para %s (%s)", config.ip, config.user)
         return {
             "success": True,
             "action": "restart",
@@ -227,6 +229,7 @@ def get_windows_status_sync() -> dict[str, Any]:
     try:
         out_str, _ = _run_ssh_command(STATUS_COMMAND, config)
         hostname = out_str.splitlines()[0].strip() if out_str else config.ip
+        logger.info("Status do PC Windows (%s) verificado com sucesso: hostname=%s", config.ip, hostname)
         return {
             "online": True,
             "hostname": hostname,

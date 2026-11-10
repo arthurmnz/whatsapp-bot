@@ -152,6 +152,7 @@ async def send_text(to: str, text: str) -> dict[str, Any]:
             last_resp = resp
 
             if not resp.is_error:
+                logger.info("Mensagem enviada com sucesso para %s via Evolution API (formato v2).", current_to)
                 try:
                     return resp.json()
                 except Exception:
@@ -164,6 +165,7 @@ async def send_text(to: str, text: str) -> dict[str, Any]:
                     resp_v1 = await client.post(url, headers=headers, json=payloads[1])
                     last_resp = resp_v1
                     if not resp_v1.is_error:
+                        logger.info("Mensagem enviada com sucesso para %s via Evolution API (formato v1).", current_to)
                         try:
                             return resp_v1.json()
                         except Exception:
@@ -209,6 +211,7 @@ def send_text_sync(to: str, text: str) -> dict[str, Any]:
             # 1. Tenta formato v2
             resp = client.post(url, headers=headers, json=payloads[0])
             last_resp = resp
+            logger.info("Mensagem enviada com sucesso para %s via Evolution API (formato v2).", current_to)
 
             if not resp.is_error:
                 try:
@@ -223,6 +226,7 @@ def send_text_sync(to: str, text: str) -> dict[str, Any]:
                     resp_v1 = client.post(url, headers=headers, json=payloads[1])
                     last_resp = resp_v1
                     if not resp_v1.is_error:
+                        logger.info("Mensagem enviada com sucesso para %s via Evolution API (formato v1).", current_to)
                         try:
                             return resp_v1.json()
                         except Exception:
