@@ -5,8 +5,9 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
-    ports:
-      - "5050:5050"
+    network_mode: host
+    extra_hosts:
+      - "redis:127.0.0.1"
     volumes:
       - ./config:/app/config
       - ./app:/app/app
@@ -15,14 +16,14 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    networks:
-      - whatsapp-net
 
   redis:
     image: redis:7-alpine
     container_name: whatsapp_redis
     restart: unless-stopped
     command: redis-server --appendonly yes
+    ports:
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -30,12 +31,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
-    networks:
-      - whatsapp-net
 
 volumes:
   redis_data:
-
-networks:
-  whatsapp-net:
-    driver: host
