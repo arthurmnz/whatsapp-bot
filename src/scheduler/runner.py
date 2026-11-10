@@ -4,8 +4,12 @@ from pathlib import Path
 import signal
 import sys
 
+from dotenv import load_dotenv
+
 from src.scheduler.config import load_scheduler_config
 from src.scheduler.service import CronScheduler
+
+load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO,

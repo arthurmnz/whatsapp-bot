@@ -3,7 +3,10 @@ import os
 import re
 from typing import Any
 
+from dotenv import load_dotenv
 import httpx
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 

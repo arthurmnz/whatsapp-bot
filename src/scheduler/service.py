@@ -73,6 +73,15 @@ class CronScheduler:
     def start(self) -> None:
         """Inicia o agendador em background se ainda não estiver em execução."""
         if not self._scheduler.running:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+            self._scheduler._eventloop = loop
             self._scheduler.start()
 
     def shutdown(self, wait: bool = False) -> None:

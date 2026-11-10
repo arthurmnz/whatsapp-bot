@@ -1,21 +1,45 @@
+from contextlib import asynccontextmanager
 import inspect
 import logging
-import traceback
 import os
+import traceback
 
-import uvicorn
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
+import uvicorn
 
 # from src.agent.agent import agent_executor
 from src.evolution_client import send_text
 from src.memory import append_messages, clear_history, get_history
+from src.scheduler import CronScheduler, load_scheduler_config
 
-PORT = os.environ.get("PORT", 5000)
+load_dotenv()
+
+PORT = int(os.environ.get("PORT", 5000))
 
 logger = logging.getLogger(__name__)
 
 
-app = FastAPI(title="C3PO – Webhook")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Ciclo de vida da aplicação FastAPI: inicia e encerra o CronScheduler."""
+    logger.info("Iniciando CronScheduler no lifespan do FastAPI...")
+    scheduler = CronScheduler()
+    try:
+        config = load_scheduler_config("config/scheduled_messages.json")
+        scheduler.start()
+        scheduler.register_jobs(config)
+        logger.info("CronScheduler iniciado com sucesso.")
+    except Exception as exc:
+        logger.error("Erro ao iniciar CronScheduler: %s", exc)
+
+    yield
+
+    logger.info("Encerrando CronScheduler...")
+    scheduler.shutdown()
+
+
+app = FastAPI(title="C3PO – Webhook", lifespan=lifespan)
 
 
 async def handle_message(request: Request):
