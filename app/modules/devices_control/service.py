@@ -63,7 +63,7 @@ def wake_windows_sync() -> dict[str, Any]:
         }
 
     try:
-        wakeonlan.wake(config.mac)
+        wakeonlan.wake(config.mac, interface='192.168.0.5')
 
         logger.info("Magic Packet WOL enviado para MAC %s (%s:%d)", config.mac, config.broadcast, config.port)
         return {
