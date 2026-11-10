@@ -4,7 +4,7 @@ import logging
 import os
 import socket
 from typing import Any
-
+from wakeonlan import send_magic_packet
 import paramiko
 
 from app.modules.devices_control.config import (
@@ -62,23 +62,8 @@ def wake_windows_sync() -> dict[str, Any]:
             "message": f"⚠️ Configuração Wake-on-LAN inválida: {exc}",
         }
 
-    magic_packet = b"\xff" * 6 + config.mac_bytes * 16
-
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        sock.settimeout(2.0)
-
-        sock.sendto(magic_packet, (config.broadcast, config.port))
-
-        # Também envia para o broadcast /24 derivado de WIN_MNZ_IP caso seja diferente
-        win_ip = os.getenv("WIN_MNZ_IP", "").strip()
-        subnet_broadcast = _derive_subnet_broadcast(win_ip)
-        if subnet_broadcast and subnet_broadcast != config.broadcast:
-            try:
-                sock.sendto(magic_packet, (subnet_broadcast, config.port))
-            except OSError:
-                pass
+        send_magic_packet(config.mac)
 
         logger.info("Magic Packet WOL enviado para MAC %s (%s:%d)", config.mac, config.broadcast, config.port)
         return {
@@ -99,8 +84,6 @@ def wake_windows_sync() -> dict[str, Any]:
             "mac": config.mac,
             "message": "🔴 Não foi possível enviar o pacote Wake-on-LAN na rede.",
         }
-    finally:
-        sock.close()
 
 
 def _run_ssh_command(command: str, config: WindowsSSHConfig) -> tuple[str, str]:
