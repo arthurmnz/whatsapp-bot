@@ -37,7 +37,7 @@ def parse_mac_address(raw_mac: str) -> tuple[str, bytes]:
     """Valida e normaliza um endereço MAC nos formatos AA:BB:CC:DD:EE:FF, AA-BB-CC-DD-EE-FF ou AABBCCDDEEFF.
 
     Retorna:
-        tuple[str, bytes]: (canonical_mac ex: '10:FF:E0:01:AA:D1', bytes de 6 octetos)
+        tuple[str, bytes]: (canonical_mac ex: 'AA-BB-CC-DD-EE-FF', bytes de 6 octetos)
     """
     if not raw_mac or not raw_mac.strip():
         raise ValueError("Endereço MAC (WIN_MNZ_MAC) não configurado ou vazio.")
@@ -49,7 +49,7 @@ def parse_mac_address(raw_mac: str) -> tuple[str, bytes]:
         )
 
     upper_hex = cleaned.upper()
-    canonical_mac = ":".join(upper_hex[i : i + 2] for i in range(0, 12, 2))
+    canonical_mac = "-".join(upper_hex[i : i + 2] for i in range(0, 12, 2))
     mac_bytes = bytes.fromhex(upper_hex)
     return canonical_mac, mac_bytes
 
