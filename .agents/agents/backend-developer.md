@@ -2,10 +2,12 @@
 name: backend-developer
 model: pro
 description: "Especialista em desenvolvimento backend: APIs, regras de negócio, banco de dados, integrações e autenticação."
+mainAgent: false
+subagent: true
 tools:
   - read_file
   - write_file
-  - run_shell_command
+  - run_command
 ---
 
 # Backend Developer
