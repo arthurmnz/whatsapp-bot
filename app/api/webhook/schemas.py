@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 
 class ActionType(str, Enum):
     IGNORE = "ignore"
+    REGISTER = "register"
+    UNAUTHORIZED = "unauthorized"
     COMMAND = "command"
     AGENT = "agent"
 
@@ -22,7 +24,11 @@ class WebhookEvent(BaseModel):
 
     @property
     def normalized_command(self) -> str:
-        return self.message_text.strip().lower()
+        text = self.message_text.strip()
+        if not text:
+            return ""
+        first_token = text.split(maxsplit=1)[0].lower()
+        return first_token if first_token.startswith("/") else text.lower()
 
 
 class TriageDecision(BaseModel):
@@ -31,12 +37,21 @@ class TriageDecision(BaseModel):
     action: ActionType
     reason: str | None = None
     command_key: str | None = None
+    user: Any = None
+    required_permission: str | None = None
 
 
 class ExecutionResult(BaseModel):
-    """Resultado da camada de lógica selecionada (command ou agent handler)."""
+    """Resultado da camada de lógica selecionada (command, register, unauthorized ou agent handler)."""
 
-    status: Literal["success", "error", "ignored"] = "success"
+    status: Literal[
+        "success",
+        "error",
+        "ignored",
+        "registered",
+        "already_registered",
+        "unauthorized",
+    ] = "success"
     reply_text: str | None = None
     response_code: str | None = None
     use_http_exception_envelope: bool = False

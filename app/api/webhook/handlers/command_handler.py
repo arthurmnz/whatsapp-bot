@@ -2,7 +2,8 @@ from collections.abc import Awaitable, Callable
 
 from app.api.webhook.handlers.base import BaseHandler
 from app.api.webhook.schemas import ExecutionResult, TriageDecision, WebhookEvent
-from app.api.webhook.triage import KNOWN_COMMANDS
+from app.api.webhook.triage import COMMAND_PERMISSIONS, KNOWN_COMMANDS
+from app.db.repositories.user_repo import user_has_permission
 import app.api.webhook as webhook_pkg
 
 
@@ -20,6 +21,8 @@ class CommandHandler(BaseHandler):
 
     async def handle(self, event: WebhookEvent, decision: TriageDecision) -> ExecutionResult:
         cmd_key = decision.command_key or event.normalized_command
+        if cmd_key == "/help":
+            return await self._handle_help(event, decision)
         handler_fn = self._dispatch_table.get(cmd_key)
         if handler_fn is None:
             return ExecutionResult(
@@ -28,8 +31,19 @@ class CommandHandler(BaseHandler):
             )
         return await handler_fn(event)
 
-    async def _handle_help(self, event: WebhookEvent) -> ExecutionResult:
-        help_lines = [f"- *{c}* - {desc}" for c, desc in KNOWN_COMMANDS.items()]
+    async def _handle_help(
+        self,
+        event: WebhookEvent,
+        decision: TriageDecision | None = None,
+    ) -> ExecutionResult:
+        user = decision.user if decision is not None else None
+        help_lines = []
+        for c, desc in KNOWN_COMMANDS.items():
+            req_perm = COMMAND_PERMISSIONS.get(c)
+            if user is not None and req_perm is not None and not user_has_permission(user, req_perm):
+                continue
+            help_lines.append(f"- *{c}* - {desc}")
+
         reply_text = "💻 Comandos disponíveis:\n" + "\n".join(help_lines)
         return ExecutionResult(
             status="success",

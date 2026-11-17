@@ -9,18 +9,25 @@ from app.modules.devices_control import (
 
 from app.api.webhook.parser import EvolutionWebhookParser
 from app.api.webhook.responder import WebhookResponder
-from app.api.webhook.router import evolution_webhook, router
+from app.api.webhook.router import evolution_webhook, router, sanitize_message_for_log
 from app.api.webhook.schemas import ActionType, ExecutionResult, TriageDecision, WebhookEvent
-from app.api.webhook.triage import COMMAND_ALIASES, KNOWN_COMMANDS, WebhookTriageEngine
+from app.api.webhook.triage import (
+    COMMAND_ALIASES,
+    COMMAND_PERMISSIONS,
+    KNOWN_COMMANDS,
+    WebhookTriageEngine,
+)
 
 commands = KNOWN_COMMANDS
 
 __all__ = [
     "router",
     "evolution_webhook",
+    "sanitize_message_for_log",
     "commands",
     "KNOWN_COMMANDS",
     "COMMAND_ALIASES",
+    "COMMAND_PERMISSIONS",
     "ActionType",
     "WebhookEvent",
     "TriageDecision",

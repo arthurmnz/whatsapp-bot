@@ -7,6 +7,7 @@ from fastapi import FastAPI
 import uvicorn
 
 from app.api.webhook import router as webhook_router
+from app.db.seed import init_db
 from app.modules.scheduler import CronScheduler, load_scheduler_config
 
 load_dotenv()
@@ -18,7 +19,14 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Ciclo de vida da aplicação FastAPI: inicia e encerra o CronScheduler."""
+    """Ciclo de vida da aplicação FastAPI: inicializa banco/RBAC e gerencia o CronScheduler."""
+    logger.info("Inicializando banco de dados e RBAC no lifespan do FastAPI...")
+    try:
+        init_db()
+        logger.info("Banco de dados e seed RBAC inicializados com sucesso.")
+    except Exception as exc:
+        logger.error("Erro ao inicializar banco de dados no lifespan: %s", exc)
+
     logger.info("Iniciando CronScheduler no lifespan do FastAPI...")
     scheduler = CronScheduler()
     try:

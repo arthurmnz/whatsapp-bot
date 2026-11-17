@@ -215,6 +215,36 @@ async def test_responder_supports_sync_and_async_send_text():
 # ─── Integração Ponta a Ponta na Rota POST /webhook ──────────────────────────
 
 
+def _make_mock_admin_user():
+    perm_codes = [
+        "cmd:help",
+        "cmd:status_windows",
+        "cmd:wake_windows",
+        "cmd:shutdown_windows",
+        "cmd:restart_windows",
+        "agent:chat",
+    ]
+    perms = [MagicMock(code=c) for c in perm_codes]
+    role = MagicMock(name="admin", permissions=perms)
+    return MagicMock(
+        id=1,
+        nome="Arthur",
+        is_active=True,
+        role=role,
+    )
+
+
+@pytest.fixture(autouse=True)
+def _mock_webhook_db_and_user():
+    from app.db.session import get_db
+
+    mock_db = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    with patch("app.api.webhook.router.get_user_by_jid", return_value=_make_mock_admin_user()):
+        yield
+    app.dependency_overrides.pop(get_db, None)
+
+
 def test_webhook_endpoint_help_command():
     with patch("app.api.webhook.send_text", new_callable=AsyncMock) as mock_send:
         client = TestClient(app)

@@ -1,9 +1,34 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 import pytest
 
 from app.main import app
+
+
+def _make_mock_admin_user():
+    perm_codes = [
+        "cmd:help",
+        "cmd:status_windows",
+        "cmd:wake_windows",
+        "cmd:shutdown_windows",
+        "cmd:restart_windows",
+        "agent:chat",
+    ]
+    perms = [MagicMock(code=c) for c in perm_codes]
+    role = MagicMock(name="admin", permissions=perms)
+    return MagicMock(id=1, nome="Arthur", is_active=True, role=role)
+
+
+@pytest.fixture(autouse=True)
+def _mock_webhook_db_and_user():
+    from app.db.session import get_db
+
+    mock_db = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    with patch("app.api.webhook.router.get_user_by_jid", return_value=_make_mock_admin_user()):
+        yield
+    app.dependency_overrides.pop(get_db, None)
 
 
 def _build_webhook_payload(text: str, remote_jid: str = "5511999999999@s.whatsapp.net") -> dict:
