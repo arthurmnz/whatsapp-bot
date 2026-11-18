@@ -26,7 +26,7 @@ class RemotiveAdapter(JobSourceAdapter):
             params["search"] = query.strip()
 
         try:
-            async with httpx.AsyncClient(timeout=12.0) as client:
+            async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
                 resp = await client.get(self.endpoint, params=params)
                 if resp.is_error:
                     return []

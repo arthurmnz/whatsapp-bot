@@ -43,7 +43,7 @@ class GreenhouseAdapter(JobSourceAdapter):
         query_terms = [t.lower() for t in re.split(r"[\s,]+", query or "") if len(t) >= 2]
         results: list[NormalizedJob] = []
 
-        async with httpx.AsyncClient(timeout=12.0) as client:
+        async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
             for slug in valid_slugs:
                 url = f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs"
                 try:
@@ -108,7 +108,7 @@ class LeverAdapter(JobSourceAdapter):
         query_terms = [t.lower() for t in re.split(r"[\s,]+", query or "") if len(t) >= 2]
         results: list[NormalizedJob] = []
 
-        async with httpx.AsyncClient(timeout=12.0) as client:
+        async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
             for slug in valid_slugs:
                 url = f"https://api.lever.co/v0/postings/{slug}"
                 try:

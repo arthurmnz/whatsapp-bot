@@ -24,7 +24,7 @@ class HimalayasAdapter(JobSourceAdapter):
     async def fetch_jobs(self, query: str = "", limit: int = 20, **kwargs: Any) -> list[NormalizedJob]:
         params = {"limit": max(5, min(50, limit)), "offset": 0}
         try:
-            async with httpx.AsyncClient(timeout=12.0) as client:
+            async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
                 resp = await client.get(self.endpoint, params=params)
                 if resp.is_error:
                     return []

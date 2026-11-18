@@ -47,7 +47,7 @@ class GitHubBRAdapter(JobSourceAdapter):
             "Accept": "application/vnd.github+json",
             "User-Agent": "C3PO-CareerAgent/1.0",
         }
-        async with httpx.AsyncClient(timeout=12.0) as client:
+        async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
             for repo in self.repos:
                 url = f"https://api.github.com/repos/{repo}/issues"
                 try:

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
+from sqlalchemy import case
 from sqlalchemy.orm import Session
 
 from app.core.auth import require_permission
@@ -74,7 +75,7 @@ async def list_jobs(
         q = q.filter(JobPosting.language == language)
     norm_sen = normalize_seniority_filter(seniority)
     if norm_sen:
-        q = q.filter(JobPosting.seniority == norm_sen)
+        q = q.filter((JobPosting.seniority == norm_sen) | (JobPosting.seniority == "unknown"))
     if work_model and work_model.strip():
         q = q.filter(JobPosting.work_model == work_model.strip().lower())
     if location and location.strip():
@@ -103,8 +104,13 @@ async def list_jobs(
         )
 
     total = q.count()
+    order_cols = []
+    if norm_sen:
+        order_cols.append(case((JobPosting.seniority == norm_sen, 0), else_=1))
+    order_cols.extend([JobMatch.match_score.desc(), JobMatch.created_at.desc()])
+
     matches = (
-        q.order_by(JobMatch.match_score.desc(), JobMatch.created_at.desc())
+        q.order_by(*order_cols)
         .offset(offset)
         .limit(limit)
         .all()

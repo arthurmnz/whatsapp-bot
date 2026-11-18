@@ -6,6 +6,7 @@ from typing import Any
 from bs4 import BeautifulSoup
 import httpx
 
+from app.modules.jobs_career.skills_taxonomy import infer_seniority
 from app.modules.jobs_career.sources.base import (
     JobSourceAdapter,
     NormalizedJob,
@@ -16,6 +17,18 @@ from app.modules.jobs_career.sources.base import (
 logger = logging.getLogger(__name__)
 
 _JOB_ID_RE = re.compile(r"(\d{6,14})")
+_LINKEDIN_WT_MAP = {
+    "remote": "2",
+    "hybrid": "3",
+    "onsite": "1",
+}
+_LINKEDIN_EXP_MAP = {
+    "intern": "1",
+    "junior": "2",
+    "mid": "3,4",
+    "senior": "4",
+    "lead": "5",
+}
 
 
 class LinkedInGuestAdapter(JobSourceAdapter):
@@ -40,25 +53,27 @@ class LinkedInGuestAdapter(JobSourceAdapter):
     async def _fetch_job_description(
         self,
         client: httpx.AsyncClient,
+        sem: asyncio.Semaphore,
         job_id: str,
         headers: dict[str, str],
     ) -> str:
         if not job_id:
             return ""
-        try:
-            resp = await client.get(
-                self.detail_url_tpl.format(job_id=job_id),
-                headers=headers,
-                timeout=6.0,
-            )
-            if resp.status_code != 200 or not resp.text:
+        async with sem:
+            try:
+                resp = await client.get(
+                    self.detail_url_tpl.format(job_id=job_id),
+                    headers=headers,
+                    timeout=6.0,
+                )
+                if resp.status_code != 200 or not resp.text:
+                    return ""
+                soup = BeautifulSoup(resp.text, "html.parser")
+                markup = soup.select_one(".show-more-less-html__markup")
+                if markup:
+                    return strip_html(str(markup))
+            except Exception:
                 return ""
-            soup = BeautifulSoup(resp.text, "html.parser")
-            markup = soup.select_one(".show-more-less-html__markup")
-            if markup:
-                return strip_html(str(markup))
-        except Exception:
-            return ""
         return ""
 
     async def fetch_jobs(self, query: str = "", limit: int = 20, **kwargs: Any) -> list[NormalizedJob]:
@@ -66,16 +81,17 @@ class LinkedInGuestAdapter(JobSourceAdapter):
         location_kw = (kwargs.get("location") or "").strip() or "Brasil"
         work_model = (kwargs.get("work_model") or "").strip().lower()
 
-        base_kw = (query or "").strip() or "developer"
-        keywords = f"{base_kw} {seniority}".strip() if seniority and seniority not in base_kw.lower() else base_kw
+        keywords = (query or "").strip() or "developer"
 
         params: dict[str, Any] = {
             "keywords": keywords,
             "location": location_kw,
             "start": 0,
         }
-        if work_model == "remote":
-            params["f_WT"] = "2"
+        if work_model in _LINKEDIN_WT_MAP:
+            params["f_WT"] = _LINKEDIN_WT_MAP[work_model]
+        if seniority in _LINKEDIN_EXP_MAP:
+            params["f_E"] = _LINKEDIN_EXP_MAP[seniority]
 
         headers = {
             "User-Agent": (
@@ -83,10 +99,11 @@ class LinkedInGuestAdapter(JobSourceAdapter):
                 "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
             ),
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8",
         }
 
         try:
-            async with httpx.AsyncClient(timeout=12.0) as client:
+            async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
                 resp = await client.get(self.search_url, params=params, headers=headers)
                 if resp.status_code != 200 or not resp.text:
                     return []
@@ -139,10 +156,11 @@ class LinkedInGuestAdapter(JobSourceAdapter):
                 if not parsed_cards:
                     return []
 
-                # Enriquece até 8 vagas em paralelo com timeout curto
-                enrich_count = min(len(parsed_cards), min(limit, 8))
+                # Limita enriquecimento para no máximo 4 detalhes com concorrência controlada
+                enrich_count = min(len(parsed_cards), min(limit, 4))
+                sem = asyncio.Semaphore(2)
                 detail_tasks = [
-                    self._fetch_job_description(client, parsed_cards[i]["job_id"], headers)
+                    self._fetch_job_description(client, sem, parsed_cards[i]["job_id"], headers)
                     for i in range(enrich_count)
                 ]
                 enriched_descs = await asyncio.gather(*detail_tasks, return_exceptions=True)
@@ -161,6 +179,15 @@ class LinkedInGuestAdapter(JobSourceAdapter):
                         ]
                         desc_raw = " — ".join(p for p in parts if p)
 
+                    inferred_sen = infer_seniority(card_data["title"])
+                    if inferred_sen == "unknown":
+                        inferred_sen = infer_seniority(desc_raw)
+                    fallback_sen = (
+                        seniority
+                        if (seniority in _LINKEDIN_EXP_MAP and inferred_sen == "unknown")
+                        else (inferred_sen if inferred_sen != "unknown" else None)
+                    )
+
                     results.append(
                         NormalizedJob(
                             source=self.source_name,
@@ -169,7 +196,8 @@ class LinkedInGuestAdapter(JobSourceAdapter):
                             title=card_data["title"][:300],
                             company_name=card_data["company_name"][:255] if card_data["company_name"] else None,
                             location=card_data["location"][:255] if card_data["location"] else None,
-                            work_model="remote" if work_model == "remote" else None,
+                            work_model=work_model if work_model in _LINKEDIN_WT_MAP else None,
+                            seniority=fallback_sen,
                             description_raw=desc_raw,
                             posted_at=card_data["posted_at"],
                         ).finalize()

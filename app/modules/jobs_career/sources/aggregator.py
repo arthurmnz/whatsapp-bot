@@ -80,14 +80,13 @@ def _matches_seniority(norm_job: NormalizedJob, target_seniority: str) -> bool:
     if norm_job.seniority == target_seniority:
         return True
     if norm_job.seniority == "unknown":
-        terms = _SENIORITY_TERMS.get(target_seniority, (target_seniority,))
-        blob = f"{norm_job.title} {norm_job.description_raw}".lower()
-        return any(re.search(rf"\b{re.escape(t)}\b", blob) for t in terms)
+        return True
     return False
 
 
 def _matches_work_model(norm_job: NormalizedJob, target_work_model: str) -> bool:
-    return (norm_job.work_model or "unknown").lower() == target_work_model
+    wm = (norm_job.work_model or "unknown").lower()
+    return wm == target_work_model or wm == "unknown"
 
 
 def _matches_location(norm_job: NormalizedJob, target_location: str) -> bool:

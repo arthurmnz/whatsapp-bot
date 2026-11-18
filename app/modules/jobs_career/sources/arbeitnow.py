@@ -22,7 +22,7 @@ class ArbeitnowAdapter(JobSourceAdapter):
 
     async def fetch_jobs(self, query: str = "", limit: int = 20, **kwargs: Any) -> list[NormalizedJob]:
         try:
-            async with httpx.AsyncClient(timeout=12.0) as client:
+            async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
                 resp = await client.get(self.endpoint)
                 if resp.is_error:
                     return []
