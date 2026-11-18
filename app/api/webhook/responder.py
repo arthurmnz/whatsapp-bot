@@ -1,5 +1,6 @@
 import inspect
 import logging
+import os
 from typing import Any
 
 from fastapi import HTTPException
@@ -30,6 +31,21 @@ class WebhookResponder:
             if inspect.isawaitable(res):
                 await res
             logger.info("Resposta enviada para %s", event.remote_jid)
+
+        file_path = result.metadata.get("generated_file_path") if result.metadata else None
+        if file_path and os.path.exists(str(file_path)):
+            try:
+                filename = str(result.metadata.get("generated_filename") or "curriculo.pdf")
+                doc_res = webhook_pkg.send_document(
+                    to=event.remote_jid,
+                    file_path=str(file_path),
+                    filename=filename,
+                    caption="📄 Aqui está o seu currículo otimizado em PDF!",
+                )
+                if inspect.isawaitable(doc_res):
+                    await doc_res
+            except Exception as exc:
+                logger.warning("Falha ao enviar documento PDF pelo WhatsApp para %s: %s", event.remote_jid, exc)
 
         if result.use_http_exception_envelope:
             raise HTTPException(

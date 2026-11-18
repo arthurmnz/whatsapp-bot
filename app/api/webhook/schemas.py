@@ -20,6 +20,7 @@ class WebhookEvent(BaseModel):
     push_name: str = ""
     from_me: bool = False
     message_text: str = ""
+    attachment: dict[str, Any] | None = None
     raw_payload: dict[str, Any] = Field(default_factory=dict)
 
     @property

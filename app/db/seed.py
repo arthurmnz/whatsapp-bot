@@ -1,7 +1,8 @@
 import logging
 import os
 
-from sqlalchemy.orm import Session
+from sqlalchemy import inspect, text
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.crypto import encrypt_remote_jid, hash_remote_jid, normalize_remote_jid
 from app.db.models import Permission, Role, User
@@ -16,6 +17,12 @@ DEFAULT_PERMISSIONS: dict[str, str] = {
     "cmd:shutdown_windows": "Desligar o PC Windows via SSH",
     "cmd:restart_windows": "Reiniciar o PC Windows via SSH",
     "agent:chat": "Conversar com o agente IA C3PO",
+    "jobs:profile": "Gerenciar perfil profissional, skills e preferências de vagas",
+    "jobs:search": "Buscar, ingerir e avaliar vagas compatíveis",
+    "jobs:cv_tailor": "Analisar, otimizar e gerar currículos sob medida",
+    "jobs:applications": "Gerenciar candidaturas e funil de entrevistas",
+    "jobs:interview": "Gerar roteiros e simular entrevistas técnicas",
+    "web:access": "Acessar a interface web e chat em tempo real",
 }
 
 DEFAULT_ROLES: dict[str, dict[str, object]] = {
@@ -24,11 +31,17 @@ DEFAULT_ROLES: dict[str, dict[str, object]] = {
         "permissions": list(DEFAULT_PERMISSIONS.keys()),
     },
     "user": {
-        "description": "Usuário padrão com acesso básico a consultas e conversação",
+        "description": "Usuário padrão com acesso básico a consultas, carreira e conversação",
         "permissions": [
             "cmd:help",
             "cmd:status_windows",
             "agent:chat",
+            "jobs:profile",
+            "jobs:search",
+            "jobs:cv_tailor",
+            "jobs:applications",
+            "jobs:interview",
+            "web:access",
         ],
     },
 }
@@ -55,6 +68,33 @@ def parse_admin_remote_jids(raw_env: str) -> list[tuple[str, str]]:
         if jid:
             admins.append((jid, nome))
     return admins
+
+
+def ensure_schema_migrations(target_engine) -> None:
+    """Aplica migrações leves idempotentes para bancos já existentes sem Alembic."""
+    inspector = inspect(target_engine)
+    if not inspector.has_table("users"):
+        return
+
+    existing_cols = {col["name"] for col in inspector.get_columns("users")}
+    dialect = target_engine.dialect.name
+    stmts: list[str] = []
+    if "web_password_hash" not in existing_cols:
+        if dialect == "postgresql":
+            stmts.append("ALTER TABLE users ADD COLUMN IF NOT EXISTS web_password_hash TEXT")
+        else:
+            stmts.append("ALTER TABLE users ADD COLUMN web_password_hash TEXT")
+    if "updated_at" not in existing_cols:
+        if dialect == "postgresql":
+            stmts.append("ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP")
+        else:
+            stmts.append("ALTER TABLE users ADD COLUMN updated_at DATETIME")
+
+    if stmts:
+        with target_engine.begin() as conn:
+            for stmt in stmts:
+                conn.execute(text(stmt))
+                logger.info("Auto-migração aplicada: %s", stmt)
 
 
 def seed_initial_data(db: Session) -> None:
@@ -114,8 +154,16 @@ def seed_initial_data(db: Session) -> None:
 
 
 def init_db(bind_engine=None) -> None:
-    """Cria as tabelas caso não existam e executa o seed inicial."""
+    """Cria as tabelas caso não existam, aplica auto-migrações e executa o seed inicial."""
+    import app.modules.jobs_career.models  # noqa: F401 - garante criação de todas as tabelas
+
     target_engine = bind_engine or engine
     Base.metadata.create_all(bind=target_engine)
-    with SessionLocal() as db:
+    ensure_schema_migrations(target_engine)
+    session_factory = (
+        sessionmaker(autocommit=False, autoflush=False, bind=target_engine)
+        if bind_engine is not None
+        else SessionLocal
+    )
+    with session_factory() as db:
         seed_initial_data(db)

@@ -1,5 +1,7 @@
 import datetime
+import hmac
 import logging
+import os
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -27,8 +29,12 @@ _unauthorized_handler = UnauthorizedHandler()
 _responder = WebhookResponder()
 
 
+def _strip_log_newlines(value: str) -> str:
+    return (value or "").replace("\r", " ").replace("\n", " ")
+
+
 def sanitize_message_for_log(message_text: str) -> str:
-    """Mascara a senha quando a mensagem é um comando `/registrar` para evitar vazamento em logs."""
+    """Mascara a senha quando a mensagem é um comando `/registrar` e previne log injection."""
     stripped = (message_text or "").strip()
     if not stripped:
         return ""
@@ -38,14 +44,34 @@ def sanitize_message_for_log(message_text: str) -> str:
             return parts[0]
         if len(parts) == 2:
             return f"{parts[0]} ***"
-        return f"{parts[0]} *** {parts[2]}"
-    return message_text
+        return _strip_log_newlines(f"{parts[0]} *** {parts[2]}")
+    return _strip_log_newlines(message_text)
+
+
+
+def _verify_webhook_token_if_configured(request: Request) -> None:
+    expected = (
+        os.environ.get("WEBHOOK_SECRET_TOKEN", "").strip()
+        or os.environ.get("EVOLUTION_WEBHOOK_TOKEN", "").strip()
+    )
+    if not expected:
+        return
+    auth_hdr = request.headers.get("authorization", "")
+    bearer = auth_hdr[7:].strip() if auth_hdr.lower().startswith("bearer ") else ""
+    candidates = [
+        request.headers.get("apikey", "").strip(),
+        request.headers.get("x-webhook-token", "").strip(),
+        bearer,
+    ]
+    if not any(c and hmac.compare_digest(c, expected) for c in candidates):
+        raise HTTPException(status_code=401, detail="Token de webhook inválido ou ausente.")
 
 
 @router.post("/webhook")
 async def evolution_webhook(request: Request, db: Session = Depends(get_db)):
     """Recebe eventos do Evolution API via webhook e coordena o fluxo em 4 camadas."""
     try:
+        _verify_webhook_token_if_configured(request)
         raw_payload = await request.json()
         event = _parser.parse(raw_payload)
 
@@ -54,8 +80,7 @@ async def evolution_webhook(request: Request, db: Session = Depends(get_db)):
             event.event_type == "messages.upsert"
             and not event.from_me
             and event.remote_jid
-            and event.message_text
-            and event.message_text.strip()
+            and ((event.message_text and event.message_text.strip()) or event.attachment)
         ):
             user = get_user_by_jid(db, event.remote_jid)
 
@@ -66,10 +91,12 @@ async def evolution_webhook(request: Request, db: Session = Depends(get_db)):
 
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         safe_text = sanitize_message_for_log(event.message_text)
+        safe_jid = _strip_log_newlines(event.remote_jid)
+        safe_push = _strip_log_newlines(event.push_name)
         logger.info(
             "Mensagem recebida de %s (%s): %s - %s",
-            event.remote_jid,
-            event.push_name,
+            safe_jid,
+            safe_push,
             safe_text,
             timestamp,
         )
@@ -81,7 +108,7 @@ async def evolution_webhook(request: Request, db: Session = Depends(get_db)):
         elif decision.action == ActionType.COMMAND:
             result = await _command_handler.handle(event, decision)
         else:
-            result = await _agent_handler.handle(event, decision)
+            result = await _agent_handler.handle(event, decision, db=db)
 
         return await _responder.dispatch_and_respond(event, result)
 

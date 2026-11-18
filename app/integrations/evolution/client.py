@@ -1,5 +1,7 @@
+import base64
 import logging
 import os
+from pathlib import Path
 import re
 from typing import Any
 
@@ -68,7 +70,6 @@ def _get_alternative_recipients(to: str) -> list[str]:
     if "@g.us" in to:
         return []
 
-    # Extrai a parte numérica antes do sufixo @
     base_part = to.split("@")[0]
     digits = re.sub(r"\D", "", base_part)
 
@@ -76,14 +77,12 @@ def _get_alternative_recipients(to: str) -> list[str]:
         return []
 
     if len(digits) == 13:
-        # DDI 55 (2) + DDD (2) + 9 dígitos (9)
         ddd = digits[2:4]
         number = digits[4:]
         if number.startswith("9"):
             alt_number = f"55{ddd}{number[1:]}@s.whatsapp.net"
             return [alt_number]
     elif len(digits) == 12:
-        # DDI 55 (2) + DDD (2) + 8 dígitos (8)
         ddd = digits[2:4]
         number = digits[4:]
         alt_number = f"55{ddd}9{number}@s.whatsapp.net"
@@ -147,7 +146,6 @@ async def send_text(to: str, text: str) -> dict[str, Any]:
             idx += 1
 
             payloads = _build_payloads(current_to, text)
-            # 1. Tenta formato v2
             resp = await client.post(url, headers=headers, json=payloads[0])
             last_resp = resp
 
@@ -158,10 +156,8 @@ async def send_text(to: str, text: str) -> dict[str, Any]:
                 except Exception:
                     return {"status": "SUCCESS"}
 
-            # Tratamento de status 400
             if resp.status_code == 400:
                 if _is_format_error(resp):
-                    # Tenta formato v1
                     resp_v1 = await client.post(url, headers=headers, json=payloads[1])
                     last_resp = resp_v1
                     if not resp_v1.is_error:
@@ -171,12 +167,10 @@ async def send_text(to: str, text: str) -> dict[str, Any]:
                         except Exception:
                             return {"status": "SUCCESS"}
                 else:
-                    # Falha de destinatário: adiciona alternativas à fila
                     for alt in _get_alternative_recipients(current_to):
                         if alt not in recipients_to_try:
                             recipients_to_try.append(alt)
             else:
-                # Erros não 400 (ex: 500) não acionam fallbacks
                 break
 
     if last_resp is not None and last_resp.is_error:
@@ -208,7 +202,6 @@ def send_text_sync(to: str, text: str) -> dict[str, Any]:
             idx += 1
 
             payloads = _build_payloads(current_to, text)
-            # 1. Tenta formato v2
             resp = client.post(url, headers=headers, json=payloads[0])
             last_resp = resp
             logger.info("Mensagem enviada com sucesso para %s via Evolution API (formato v2).", current_to)
@@ -219,10 +212,8 @@ def send_text_sync(to: str, text: str) -> dict[str, Any]:
                 except Exception:
                     return {"status": "SUCCESS"}
 
-            # Tratamento de status 400
             if resp.status_code == 400:
                 if _is_format_error(resp):
-                    # Tenta formato v1
                     resp_v1 = client.post(url, headers=headers, json=payloads[1])
                     last_resp = resp_v1
                     if not resp_v1.is_error:
@@ -232,15 +223,92 @@ def send_text_sync(to: str, text: str) -> dict[str, Any]:
                         except Exception:
                             return {"status": "SUCCESS"}
                 else:
-                    # Falha de destinatário: adiciona alternativas à fila
                     for alt in _get_alternative_recipients(current_to):
                         if alt not in recipients_to_try:
                             recipients_to_try.append(alt)
             else:
-                # Erros não 400 (ex: 500) não acionam fallbacks
                 break
 
     if last_resp is not None and last_resp.is_error:
         _raise_masked_error(last_resp, api_key, url)
 
     return {}
+
+
+def _resolve_media_b64(file_path: str | None, base64_data: str | None) -> str:
+    if base64_data:
+        return base64_data
+    if file_path:
+        raw = Path(file_path).read_bytes()
+        return base64.b64encode(raw).decode("ascii")
+    raise ValueError("É necessário informar `file_path` ou `base64_data` para enviar documento.")
+
+
+async def send_document(
+    to: str,
+    file_path: str | None = None,
+    base64_data: str | None = None,
+    filename: str = "curriculo.pdf",
+    caption: str = "",
+    mimetype: str = "application/pdf",
+) -> dict[str, Any]:
+    """Envia documento (PDF/DOCX) via Evolution API `/message/sendMedia/{instance}`."""
+    _validate_recipient(to)
+    media_b64 = _resolve_media_b64(file_path, base64_data)
+    base_url, api_key, instance = _get_evolution_config()
+    url = f"{base_url}/message/sendMedia/{instance}"
+    headers = {
+        "apikey": api_key,
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "number": to,
+        "mediatype": "document",
+        "mimetype": mimetype,
+        "caption": caption,
+        "media": media_b64,
+        "fileName": Path(filename).name,
+    }
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        resp = await client.post(url, headers=headers, json=payload)
+        if resp.is_error:
+            _raise_masked_error(resp, api_key, url)
+        try:
+            return resp.json()
+        except Exception:
+            return {"status": "SUCCESS"}
+
+
+def send_document_sync(
+    to: str,
+    file_path: str | None = None,
+    base64_data: str | None = None,
+    filename: str = "curriculo.pdf",
+    caption: str = "",
+    mimetype: str = "application/pdf",
+) -> dict[str, Any]:
+    """Versão síncrona de envio de documento via Evolution API."""
+    _validate_recipient(to)
+    media_b64 = _resolve_media_b64(file_path, base64_data)
+    base_url, api_key, instance = _get_evolution_config()
+    url = f"{base_url}/message/sendMedia/{instance}"
+    headers = {
+        "apikey": api_key,
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "number": to,
+        "mediatype": "document",
+        "mimetype": mimetype,
+        "caption": caption,
+        "media": media_b64,
+        "fileName": Path(filename).name,
+    }
+    with httpx.Client(timeout=20.0) as client:
+        resp = client.post(url, headers=headers, json=payload)
+        if resp.is_error:
+            _raise_masked_error(resp, api_key, url)
+        try:
+            return resp.json()
+        except Exception:
+            return {"status": "SUCCESS"}

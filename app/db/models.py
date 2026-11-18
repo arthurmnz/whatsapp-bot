@@ -51,12 +51,19 @@ class User(Base):
     nome = Column(String(150), nullable=False)
     senha = Column(Text, nullable=False)
     remote_jid_hash = Column(String(64), unique=True, index=True, nullable=False)
+    web_password_hash = Column(Text, nullable=True)
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(
         DateTime,
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
+    )
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=True,
     )
 
     role = relationship("Role", back_populates="users", lazy="joined")

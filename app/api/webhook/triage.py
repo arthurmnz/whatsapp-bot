@@ -44,8 +44,11 @@ class WebhookTriageEngine:
         if event.from_me:
             return TriageDecision(action=ActionType.IGNORE, reason="fromMe")
 
-        if not event.message_text or not event.message_text.strip():
+        if (not event.message_text or not event.message_text.strip()) and not event.attachment:
             return TriageDecision(action=ActionType.IGNORE, reason="empty_message")
+
+        if not event.remote_jid or not event.remote_jid.strip():
+            return TriageDecision(action=ActionType.IGNORE, reason="missing_remote_jid")
 
         raw_text = event.message_text.strip()
         cmd = event.normalized_command
@@ -84,7 +87,7 @@ class WebhookTriageEngine:
                 user=actual_user,
             )
 
-        # Verifica se a mensagem inteira (normalizada) é um comando conhecido
+        # Verifica se a mensagem inteira (normalizada) é um comando conhecido de dispositivo/help
         full_lower = raw_text.lower()
         canonical_cmd = COMMAND_ALIASES.get(full_lower) or COMMAND_ALIASES.get(cmd)
         if canonical_cmd is not None and full_lower in COMMAND_ALIASES:
@@ -105,7 +108,7 @@ class WebhookTriageEngine:
                 required_permission=required_perm,
             )
 
-        # Mensagem conversacional livre -> Agente
+        # Mensagem conversacional livre ou comandos de carreira -> Agente
         required_agent_perm = "agent:chat"
         if actual_user is not None and not user_has_permission(actual_user, required_agent_perm):
             return TriageDecision(

@@ -170,15 +170,16 @@ async def test_agent_handler_persists_memory_and_returns_reply():
     decision = TriageDecision(action=ActionType.AGENT)
 
     with patch("app.api.webhook.append_messages") as mock_append:
-        result = await handler.handle(event, decision)
+        with patch("app.agent.orchestrator.invoke_llm_text", new_callable=AsyncMock, return_value="Anotado!"):
+            result = await handler.handle(event, decision)
 
     assert result.status == "success"
-    assert result.reply_text == DEFAULT_FALLBACK_REPLY
+    assert result.reply_text == "Anotado!"
     assert result.use_http_exception_envelope is False
     mock_append.assert_called_once_with(
         "5511999999999@s.whatsapp.net",
         "5511999999999@s.whatsapp.net | Arthur : Gastei 50 no mercado",
-        DEFAULT_FALLBACK_REPLY,
+        "Anotado!",
     )
 
 
@@ -260,18 +261,19 @@ def test_webhook_endpoint_help_command():
 def test_webhook_endpoint_agent_flow():
     with patch("app.api.webhook.append_messages") as mock_append:
         with patch("app.api.webhook.send_text", new_callable=AsyncMock) as mock_send:
-            client = TestClient(app)
-            resp = client.post("/webhook", json=_make_payload("Olá C3PO", use_extended=True))
+            with patch("app.agent.orchestrator.invoke_llm_text", new_callable=AsyncMock, return_value="Olá! Como posso ajudar na sua carreira hoje?"):
+                client = TestClient(app)
+                resp = client.post("/webhook", json=_make_payload("Olá C3PO", use_extended=True))
 
-            assert resp.status_code == 200
-            body = resp.json()
-            assert body["status"] == "success"
-            assert body["reply"] == DEFAULT_FALLBACK_REPLY
-            mock_append.assert_called_once()
-            mock_send.assert_awaited_once_with(
-                to="5511999999999@s.whatsapp.net",
-                text=DEFAULT_FALLBACK_REPLY,
-            )
+                assert resp.status_code == 200
+                body = resp.json()
+                assert body["status"] == "success"
+                assert body["reply"] == "Olá! Como posso ajudar na sua carreira hoje?"
+                mock_append.assert_called_once()
+                mock_send.assert_awaited_once_with(
+                    to="5511999999999@s.whatsapp.net",
+                    text="Olá! Como posso ajudar na sua carreira hoje?",
+                )
 
 
 @pytest.mark.parametrize(

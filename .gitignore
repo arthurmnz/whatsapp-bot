@@ -22,3 +22,6 @@ htmlcov/
 *.log
 .vscode/
 .idea/
+
+# Dados gerados em runtime (currículos/uploads)
+data/

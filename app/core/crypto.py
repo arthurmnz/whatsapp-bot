@@ -11,6 +11,10 @@ logger = logging.getLogger(__name__)
 _DEFAULT_DEV_SECRET = "c3po-default-dev-secret-change-in-production"
 
 
+def _is_production() -> bool:
+    return os.environ.get("APP_ENV", "").strip().lower() in {"production", "prod"}
+
+
 def normalize_remote_jid(jid: str) -> str:
     """Normaliza o remoteJid (remove espaços, aplica lowercase e garante domínio WhatsApp se apenas números)."""
     if not jid:
@@ -24,9 +28,11 @@ def normalize_remote_jid(jid: str) -> str:
 
 
 def _get_fernet() -> Fernet:
-    """Obtém instância Fernet a partir de ENCRYPTION_KEY (ou deriva chave válida de 32 bytes base64)."""
+    """Obtém instância Fernet a partir de ENCRYPTION_KEY (exigida em produção)."""
     raw_key = os.environ.get("ENCRYPTION_KEY", "").strip()
     if not raw_key:
+        if _is_production():
+            raise RuntimeError("ENCRYPTION_KEY é obrigatória quando APP_ENV=production.")
         logger.warning(
             "ENCRYPTION_KEY não configurada no ambiente; utilizando chave derivada de desenvolvimento."
         )
@@ -55,11 +61,13 @@ def decrypt_remote_jid(token: str) -> str:
 def hash_remote_jid(jid: str) -> str:
     """Gera digest HMAC-SHA256 determinístico (64 chars hex) do remoteJid normalizado para busca indexada O(1)."""
     normalized = normalize_remote_jid(jid)
-    secret = (
-        os.environ.get("HMAC_SECRET", "").strip()
-        or os.environ.get("ENCRYPTION_KEY", "").strip()
-        or _DEFAULT_DEV_SECRET
-    )
+    hmac_secret = os.environ.get("HMAC_SECRET", "").strip()
+    enc_secret = os.environ.get("ENCRYPTION_KEY", "").strip()
+
+    if _is_production() and (not hmac_secret or not enc_secret):
+        raise RuntimeError("ENCRYPTION_KEY e HMAC_SECRET são obrigatórias quando APP_ENV=production.")
+
+    secret = hmac_secret or enc_secret or _DEFAULT_DEV_SECRET
     return hmac.new(
         secret.encode("utf-8"),
         normalized.encode("utf-8"),

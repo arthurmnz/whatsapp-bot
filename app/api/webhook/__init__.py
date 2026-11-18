@@ -1,5 +1,5 @@
 from app.core.memory import append_messages
-from app.integrations.evolution import send_text
+from app.integrations.evolution import send_document, send_text
 from app.modules.devices_control import (
     get_windows_status,
     restart_windows,
@@ -36,6 +36,7 @@ __all__ = [
     "WebhookTriageEngine",
     "WebhookResponder",
     "send_text",
+    "send_document",
     "append_messages",
     "wake_windows",
     "shutdown_windows",

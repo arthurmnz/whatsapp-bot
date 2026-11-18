@@ -48,8 +48,8 @@ def test_seed_initial_data_and_multiple_admins(db_session, monkeypatch: pytest.M
     roles = {r.name: r for r in db_session.query(Role).all()}
     assert "admin" in roles
     assert "user" in roles
-    assert len(roles["admin"].permissions) == 6
-    assert len(roles["user"].permissions) == 3
+    assert len(roles["admin"].permissions) == 12
+    assert len(roles["user"].permissions) == 9
 
     # Verifica os dois admins criados
     admin1 = get_user_by_jid(db_session, "5511999999999@s.whatsapp.net")
@@ -67,6 +67,8 @@ def test_seed_initial_data_and_multiple_admins(db_session, monkeypatch: pytest.M
     assert admin2.role.name == "admin"
     assert user_has_permission(admin1, "cmd:shutdown_windows") is True
     assert user_has_permission(admin2, "cmd:wake_windows") is True
+    assert user_has_permission(admin1, "jobs:cv_tailor") is True
+    assert user_has_permission(admin1, "web:access") is True
 
 
 def test_create_registered_user_and_permissions(db_session, monkeypatch: pytest.MonkeyPatch):
@@ -89,6 +91,12 @@ def test_create_registered_user_and_permissions(db_session, monkeypatch: pytest.
     assert user_has_permission(user, "cmd:help") is True
     assert user_has_permission(user, "cmd:status_windows") is True
     assert user_has_permission(user, "agent:chat") is True
+    assert user_has_permission(user, "jobs:profile") is True
+    assert user_has_permission(user, "jobs:search") is True
+    assert user_has_permission(user, "jobs:cv_tailor") is True
+    assert user_has_permission(user, "jobs:applications") is True
+    assert user_has_permission(user, "jobs:interview") is True
+    assert user_has_permission(user, "web:access") is True
 
     # Comandos delicados negados para 'user'
     assert user_has_permission(user, "cmd:wake_windows") is False

@@ -34,8 +34,41 @@ class EvolutionWebhookParser:
         conversation = message_obj.get("conversation")
         ext_text = ext_obj.get("text")
 
-        raw_text = conversation if isinstance(conversation, str) and conversation else (
-            ext_text if isinstance(ext_text, str) and ext_text else ""
+        # Suporte a documentMessage e documentWithCaptionMessage
+        doc_obj: dict[str, Any] | None = None
+        if isinstance(message_obj.get("documentMessage"), dict):
+            doc_obj = message_obj["documentMessage"]
+        elif isinstance(message_obj.get("documentWithCaptionMessage"), dict):
+            inner_msg = message_obj["documentWithCaptionMessage"].get("message")
+            if isinstance(inner_msg, dict) and isinstance(inner_msg.get("documentMessage"), dict):
+                doc_obj = inner_msg["documentMessage"]
+
+        attachment: dict[str, Any] | None = None
+        doc_caption = ""
+        if doc_obj is not None:
+            file_name = str(doc_obj.get("fileName") or doc_obj.get("title") or "documento.pdf")
+            doc_caption = str(doc_obj.get("caption") or "").strip()
+            attachment = {
+                "type": "document",
+                "file_name": file_name,
+                "mimetype": str(doc_obj.get("mimetype") or ""),
+                "url": doc_obj.get("url"),
+                "caption": doc_caption,
+                "base64": doc_obj.get("base64") or message_obj.get("base64") or message_info.get("base64"),
+            }
+
+        raw_text = (
+            conversation
+            if isinstance(conversation, str) and conversation
+            else (
+                ext_text
+                if isinstance(ext_text, str) and ext_text
+                else (
+                    doc_caption
+                    if doc_caption
+                    else (f"[Documento: {attachment['file_name']}]" if attachment else "")
+                )
+            )
         )
 
         return WebhookEvent(
@@ -44,5 +77,6 @@ class EvolutionWebhookParser:
             push_name=push_name,
             from_me=from_me,
             message_text=raw_text,
+            attachment=attachment,
             raw_payload=payload,
         )

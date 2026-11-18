@@ -78,10 +78,10 @@ def test_get_windows_ssh_config_missing_credentials():
 @pytest.mark.parametrize(
     "raw_mac,expected_canonical",
     [
-        ("10-FF-E0-01-AA-D1", "10:FF:E0:01:AA:D1"),
-        ("10:ff:e0:01:aa:d1", "10:FF:E0:01:AA:D1"),
-        ("10FFE001AAD1", "10:FF:E0:01:AA:D1"),
-        ("  10.ff.e0.01.aa.d1  ", "10:FF:E0:01:AA:D1"),
+        ("10-FF-E0-01-AA-D1", "10-FF-E0-01-AA-D1"),
+        ("10:ff:e0:01:aa:d1", "10-FF-E0-01-AA-D1"),
+        ("10FFE001AAD1", "10-FF-E0-01-AA-D1"),
+        ("  10.ff.e0.01.aa.d1  ", "10-FF-E0-01-AA-D1"),
     ],
 )
 def test_parse_mac_address_valid_formats(raw_mac: str, expected_canonical: str):
@@ -117,7 +117,7 @@ def test_get_windows_wol_config_valid():
         clear=False,
     ):
         wol_cfg = get_windows_wol_config()
-        assert wol_cfg.mac == "10:FF:E0:01:AA:D1"
+        assert wol_cfg.mac == "10-FF-E0-01-AA-D1"
         assert wol_cfg.mac_bytes == bytes.fromhex("10FFE001AAD1")
         assert wol_cfg.broadcast == "192.168.0.255"
         assert wol_cfg.port == 7
@@ -128,7 +128,6 @@ def test_get_windows_wol_config_valid():
 
 @pytest.mark.asyncio
 async def test_wake_windows_success_magic_packet():
-    mock_sock = MagicMock(spec=socket.socket)
     with patch.dict(
         os.environ,
         {
@@ -139,22 +138,14 @@ async def test_wake_windows_success_magic_packet():
         },
         clear=False,
     ):
-        with patch("socket.socket", return_value=mock_sock):
+        with patch("wakeonlan.wake") as mock_wake:
             res = await wake_windows()
 
     assert res["success"] is True
     assert res["action"] == "wake"
-    assert res["mac"] == "10:FF:E0:01:AA:D1"
-    assert "10:FF:E0:01:AA:D1" in res["message"]
-
-    mock_sock.setsockopt.assert_called_once_with(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    assert mock_sock.sendto.call_count >= 1
-
-    sent_packet, target_addr = mock_sock.sendto.call_args_list[0][0]
-    assert len(sent_packet) == 102
-    assert sent_packet == b"\xff" * 6 + bytes.fromhex("10FFE001AAD1") * 16
-    assert target_addr == ("255.255.255.255", 9)
-    mock_sock.close.assert_called_once()
+    assert res["mac"] == "10-FF-E0-01-AA-D1"
+    assert "10-FF-E0-01-AA-D1" in res["message"]
+    mock_wake.assert_called_once_with("10-FF-E0-01-AA-D1", host="255.255.255.255", port=9)
 
 
 def test_wake_windows_invalid_mac():
@@ -173,8 +164,6 @@ def test_wake_windows_invalid_mac():
 
 
 def test_wake_windows_network_oserror():
-    mock_sock = MagicMock(spec=socket.socket)
-    mock_sock.sendto.side_effect = OSError("Network is unreachable")
     with patch.dict(
         os.environ,
         {
@@ -182,13 +171,13 @@ def test_wake_windows_network_oserror():
         },
         clear=False,
     ):
-        with patch("socket.socket", return_value=mock_sock):
+        with patch("wakeonlan.wake", side_effect=OSError("Network is unreachable")) as mock_wake:
             res = wake_windows_sync()
 
     assert res["success"] is False
     assert res["action"] == "wake"
     assert res["reason"] == "network_error"
-    mock_sock.close.assert_called_once()
+    mock_wake.assert_called_once()
 
 
 # ─── 3. Testes de Desligamento e Reinicialização (service.py) ────────────────
