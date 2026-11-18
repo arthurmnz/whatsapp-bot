@@ -493,15 +493,23 @@ def infer_contract_type(text: str) -> str:
 
 def infer_seniority(text: str) -> str:
     lowered = (text or "").lower()
-    if any(w in lowered for w in ("staff", "principal", "architect", "arquiteto")):
-        return "staff"
-    if any(w in lowered for w in ("sênior", "senior", "sr.", "sr ")):
+    if any(
+        w in lowered
+        for w in ("tech lead", "team lead", "staff", "principal", "architect", "arquiteto", "especialista")
+    ) or re.search(r"\blead\b", lowered):
+        return "lead"
+    if any(w in lowered for w in ("sênior", "senior", "sr.", "sr ")) or re.search(r"\bsr\b", lowered):
         return "senior"
     if any(w in lowered for w in ("pleno", "mid-level", "mid level", "middle")):
         return "mid"
-    if any(w in lowered for w in ("júnior", "junior", "jr.", "jr ", "entry level", "entry-level")):
+    if any(w in lowered for w in ("júnior", "junior", "jr.", "jr ", "entry level", "entry-level")) or re.search(
+        r"\bjr\b", lowered
+    ):
         return "junior"
-    if any(w in lowered for w in ("estágio", "estagiário", "intern", "trainee")):
+    if any(
+        w in lowered
+        for w in ("estágio", "estagio", "estagiário", "estagiario", "internship", "trainee")
+    ) or re.search(r"\bintern\b", lowered):
         return "intern"
     return "unknown"
 

@@ -14,6 +14,7 @@ _SENIORITY_RANK = {
     "pleno": 2,
     "senior": 3,
     "sênior": 3,
+    "lead": 4,
     "staff": 4,
 }
 

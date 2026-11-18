@@ -67,7 +67,8 @@ class NormalizedJob:
         if not self.contract_type or self.contract_type == "unknown":
             self.contract_type = reqs.get("contract_type") or infer_contract_type(self.description_raw)
         if not self.seniority or self.seniority == "unknown":
-            self.seniority = reqs.get("seniority") or infer_seniority(f"{self.title} {self.description_raw}")
+            title_sen = infer_seniority(self.title)
+            self.seniority = title_sen if title_sen != "unknown" else (reqs.get("seniority") or infer_seniority(self.description_raw))
         if self.salary_min is None:
             self.salary_min = reqs.get("salary_min")
         if self.salary_max is None:

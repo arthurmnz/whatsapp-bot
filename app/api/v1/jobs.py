@@ -10,6 +10,7 @@ from app.modules.jobs_career.sources import (
     JobUrlBlockedError,
     ingest_job_from_text,
     ingest_job_from_url,
+    normalize_seniority_filter,
     search_and_match_jobs,
     serialize_job_match,
     upsert_job_and_match,
@@ -26,6 +27,9 @@ class JobSearchBody(BaseModel):
     limit_per_source: int = Field(default=15, ge=1, le=30)
     greenhouse_slugs: list[str] | None = None
     lever_slugs: list[str] | None = None
+    seniority: str | None = None
+    location: str | None = None
+    work_model: str | None = None
 
 
 class JobIngestBody(BaseModel):
@@ -48,6 +52,9 @@ async def list_jobs(
     min_score: int = Query(default=0, ge=0, le=100),
     source: str | None = Query(default=None),
     language: str | None = Query(default=None),
+    seniority: str | None = Query(default=None),
+    location: str | None = Query(default=None),
+    work_model: str | None = Query(default=None),
     search: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -65,6 +72,28 @@ async def list_jobs(
         q = q.filter(JobPosting.source == source)
     if language:
         q = q.filter(JobPosting.language == language)
+    norm_sen = normalize_seniority_filter(seniority)
+    if norm_sen:
+        q = q.filter(JobPosting.seniority == norm_sen)
+    if work_model and work_model.strip():
+        q = q.filter(JobPosting.work_model == work_model.strip().lower())
+    if location and location.strip():
+        loc = location.strip()
+        loc_pattern = f"%{loc}%"
+        if loc.lower() in {"brasil", "brazil", "br"}:
+            q = q.filter(
+                (JobPosting.location.ilike("%brasil%"))
+                | (JobPosting.location.ilike("%brazil%"))
+                | (JobPosting.location.ilike("%latam%"))
+                | (JobPosting.description_raw.ilike("%brasil%"))
+                | (JobPosting.description_raw.ilike("%brazil%"))
+                | (JobPosting.language == "pt-BR")
+            )
+        else:
+            q = q.filter(
+                (JobPosting.location.ilike(loc_pattern))
+                | (JobPosting.description_raw.ilike(loc_pattern))
+            )
     if search and search.strip():
         pattern = f"%{search.strip()}%"
         q = q.filter(
@@ -97,6 +126,9 @@ async def search_jobs(
         limit_per_source=body.limit_per_source,
         greenhouse_slugs=body.greenhouse_slugs,
         lever_slugs=body.lever_slugs,
+        seniority=body.seniority,
+        location=body.location,
+        work_model=body.work_model,
     )
 
 

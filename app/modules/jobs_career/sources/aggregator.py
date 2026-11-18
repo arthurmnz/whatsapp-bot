@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime, timezone
 import logging
+import re
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -12,12 +13,113 @@ from app.modules.jobs_career.sources.arbeitnow import ArbeitnowAdapter
 from app.modules.jobs_career.sources.base import JobSourceAdapter, NormalizedJob
 from app.modules.jobs_career.sources.github_br import GitHubBRAdapter
 from app.modules.jobs_career.sources.greenhouse_lever import GreenhouseAdapter, LeverAdapter
+from app.modules.jobs_career.sources.gupy import GupyAdapter
 from app.modules.jobs_career.sources.himalayas import HimalayasAdapter
+from app.modules.jobs_career.sources.jobicy import JobicyAdapter
+from app.modules.jobs_career.sources.linkedin_guest import LinkedInGuestAdapter
+from app.modules.jobs_career.sources.remoteok import RemoteOKAdapter
 from app.modules.jobs_career.sources.remotive import RemotiveAdapter
 
 logger = logging.getLogger(__name__)
 
-ALL_FREE_SOURCES = ["github_br", "remotive", "arbeitnow", "himalayas", "greenhouse", "lever"]
+ALL_FREE_SOURCES = [
+    "github_br",
+    "gupy",
+    "linkedin",
+    "remotive",
+    "remoteok",
+    "jobicy",
+    "arbeitnow",
+    "himalayas",
+    "greenhouse",
+    "lever",
+]
+
+_SENIORITY_FILTER_MAP = {
+    "intern": "intern",
+    "estágio": "intern",
+    "estagio": "intern",
+    "estagiário": "intern",
+    "estagiario": "intern",
+    "trainee": "intern",
+    "junior": "junior",
+    "júnior": "junior",
+    "jr": "junior",
+    "mid": "mid",
+    "pleno": "mid",
+    "mid-level": "mid",
+    "middle": "mid",
+    "senior": "senior",
+    "sênior": "senior",
+    "sr": "senior",
+    "lead": "lead",
+    "tech lead": "lead",
+    "staff": "lead",
+    "principal": "lead",
+    "architect": "lead",
+    "especialista": "lead",
+}
+
+_SENIORITY_TERMS = {
+    "intern": ("estágio", "estagio", "estagiário", "estagiario", "intern", "internship", "trainee"),
+    "junior": ("júnior", "junior", "jr", "entry level", "entry-level"),
+    "mid": ("pleno", "mid-level", "mid level", "middle", "mid"),
+    "senior": ("sênior", "senior", "sr"),
+    "lead": ("tech lead", "team lead", "lead", "staff", "principal", "architect", "arquiteto", "especialista"),
+}
+
+
+def normalize_seniority_filter(raw: str | None) -> str | None:
+    if not raw or not raw.strip():
+        return None
+    cleaned = raw.strip().lower()
+    return _SENIORITY_FILTER_MAP.get(cleaned, cleaned)
+
+
+def _matches_seniority(norm_job: NormalizedJob, target_seniority: str) -> bool:
+    if norm_job.seniority == target_seniority:
+        return True
+    if norm_job.seniority == "unknown":
+        terms = _SENIORITY_TERMS.get(target_seniority, (target_seniority,))
+        blob = f"{norm_job.title} {norm_job.description_raw}".lower()
+        return any(re.search(rf"\b{re.escape(t)}\b", blob) for t in terms)
+    return False
+
+
+def _matches_work_model(norm_job: NormalizedJob, target_work_model: str) -> bool:
+    return (norm_job.work_model or "unknown").lower() == target_work_model
+
+
+def _matches_location(norm_job: NormalizedJob, target_location: str) -> bool:
+    loc_q = target_location.strip().lower()
+    loc_field = (norm_job.location or "").lower()
+    haystack = f"{loc_field} {norm_job.title or ''} {norm_job.description_raw or ''}".lower()
+
+    if loc_q in {"brasil", "brazil", "br"}:
+        if norm_job.language == "pt-BR":
+            return True
+        if any(
+            marker in haystack
+            for marker in ("brasil", "brazil", "latam", "south america", "américa latina", "america latina", "anywhere", "worldwide")
+        ):
+            return True
+        return bool(re.search(r",\s*(sp|rj|mg|rs|pr|sc|ba|df|pe|ce|go|es)\b", loc_field))
+
+    if loc_q in {"latam", "américa latina", "america latina"}:
+        return norm_job.language == "pt-BR" or any(
+            m in haystack for m in ("latam", "latin america", "south america", "brasil", "brazil", "anywhere", "worldwide")
+        )
+
+    if loc_q in {"remoto", "remote"}:
+        return norm_job.work_model == "remote" or any(m in haystack for m in ("remote", "remoto", "anywhere"))
+
+    if loc_q in {"us", "usa", "united states"}:
+        return any(m in haystack for m in ("usa", "united states", "us only", "us-only", "north america", "anywhere", "worldwide"))
+
+    if loc_q in {"europe", "europa", "eu"}:
+        return any(m in haystack for m in ("europe", "europa", "emea", "anywhere", "worldwide"))
+
+    return loc_q in haystack
 
 
 def _build_adapters(
@@ -29,8 +131,16 @@ def _build_adapters(
     adapters: list[JobSourceAdapter] = []
     if "github_br" in selected:
         adapters.append(GitHubBRAdapter())
+    if "gupy" in selected:
+        adapters.append(GupyAdapter())
+    if "linkedin" in selected:
+        adapters.append(LinkedInGuestAdapter())
     if "remotive" in selected:
         adapters.append(RemotiveAdapter())
+    if "remoteok" in selected:
+        adapters.append(RemoteOKAdapter())
+    if "jobicy" in selected:
+        adapters.append(JobicyAdapter())
     if "arbeitnow" in selected:
         adapters.append(ArbeitnowAdapter())
     if "himalayas" in selected:
@@ -164,8 +274,11 @@ async def search_and_match_jobs(
     limit_per_source: int = 15,
     greenhouse_slugs: list[str] | None = None,
     lever_slugs: list[str] | None = None,
+    seniority: str | None = None,
+    location: str | None = None,
+    work_model: str | None = None,
 ) -> dict[str, Any]:
-    """Busca vagas em paralelo nas fontes gratuitas, deduplica e calcula score com perfil."""
+    """Busca vagas em paralelo nas fontes gratuitas, filtra, deduplica e calcula score com perfil."""
     profile = get_or_create_profile(db, user_id)
     pref = profile.preferences
 
@@ -173,12 +286,25 @@ async def search_and_match_jobs(
     if not effective_query and pref and pref.target_roles:
         effective_query = str(pref.target_roles[0])
 
+    norm_seniority = normalize_seniority_filter(seniority)
+    norm_work_model = work_model.strip().lower() if work_model and work_model.strip() else None
+    clean_location = location.strip() if location and location.strip() else None
+
     target_companies = [str(c).strip() for c in (pref.target_companies if pref else []) if str(c).strip()]
     eff_gh = greenhouse_slugs if greenhouse_slugs is not None else target_companies
     eff_lv = lever_slugs if lever_slugs is not None else target_companies
 
     adapters = _build_adapters(sources, eff_gh, eff_lv)
-    tasks = [adapter.fetch_jobs(query=effective_query, limit=limit_per_source) for adapter in adapters]
+    tasks = [
+        adapter.fetch_jobs(
+            query=effective_query,
+            limit=limit_per_source,
+            seniority=norm_seniority,
+            location=clean_location,
+            work_model=norm_work_model,
+        )
+        for adapter in adapters
+    ]
     responses = await asyncio.gather(*tasks, return_exceptions=True)
 
     source_stats: dict[str, Any] = {}
@@ -190,8 +316,20 @@ async def search_and_match_jobs(
             logger.warning("Erro na fonte %s: %s", adapter.source_name, res)
             source_stats[adapter.source_name] = {"fetched": 0, "error": str(res)}
             continue
-        source_stats[adapter.source_name] = {"fetched": len(res)}
+
+        filtered_jobs: list[NormalizedJob] = []
         for norm_job in res:
+            norm_job.finalize()
+            if norm_seniority and not _matches_seniority(norm_job, norm_seniority):
+                continue
+            if norm_work_model and not _matches_work_model(norm_job, norm_work_model):
+                continue
+            if clean_location and not _matches_location(norm_job, clean_location):
+                continue
+            filtered_jobs.append(norm_job)
+
+        source_stats[adapter.source_name] = {"fetched": len(filtered_jobs), "raw_fetched": len(res)}
+        for norm_job in filtered_jobs:
             _, match = upsert_job_and_match(db, user_id, norm_job)
             if match.id not in seen_match_ids:
                 seen_match_ids.add(match.id)
@@ -204,6 +342,11 @@ async def search_and_match_jobs(
     all_matches.sort(key=lambda m: (m.match_score, m.created_at), reverse=True)
     return {
         "query": effective_query,
+        "filters": {
+            "seniority": norm_seniority,
+            "location": clean_location,
+            "work_model": norm_work_model,
+        },
         "total_fetched": sum(v.get("fetched", 0) for v in source_stats.values()),
         "sources": source_stats,
         "items": [serialize_job_match(m) for m in all_matches],

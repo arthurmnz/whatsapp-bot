@@ -724,3 +724,99 @@ def test_tailored_save_as_base_and_delete_endpoints(api_client, tmp_path: Path):
     apps = client.get("/api/v1/applications", headers=admin_hdrs).json()["items"]
     app_row = next(a for a in apps if a["id"] == app_id)
     assert app_row["tailored_resume_id"] is None
+
+
+def test_jobs_search_and_list_filters_seniority_location_work_model(api_client):
+    client, session_factory = api_client
+    token = _login_via_otp(client, session_factory, "5511999999999")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    matching_gupy = NormalizedJob(
+        source="gupy",
+        external_id="g-1",
+        source_url="https://gupy.io/jobs/1",
+        title="Engenheiro Python Sênior",
+        company_name="TechBR",
+        location="São Paulo, SP, Brasil",
+        work_model="remote",
+        language="pt-BR",
+        description_raw="Vaga sênior 100% remota no Brasil com Python, FastAPI e PostgreSQL.",
+    )
+    wrong_seniority_gupy = NormalizedJob(
+        source="gupy",
+        external_id="g-2",
+        source_url="https://gupy.io/jobs/2",
+        title="Estágio Python",
+        company_name="TechBR",
+        location="São Paulo, SP, Brasil",
+        work_model="remote",
+        language="pt-BR",
+        description_raw="Vaga de estágio remota no Brasil.",
+    )
+    wrong_location_rok = NormalizedJob(
+        source="remoteok",
+        external_id="r-1",
+        source_url="https://remoteok.com/jobs/1",
+        title="Senior Python Engineer",
+        company_name="USOnlyCo",
+        location="United States Only",
+        work_model="remote",
+        language="en",
+        description_raw="Senior Python role strictly for US residents.",
+    )
+    wrong_model_li = NormalizedJob(
+        source="linkedin",
+        external_id="l-1",
+        source_url="https://linkedin.com/jobs/view/99",
+        title="Senior Python Developer",
+        company_name="OfficeCorp",
+        location="São Paulo, Brasil",
+        work_model="onsite",
+        language="pt-BR",
+        description_raw="Atuação 100% presencial em São Paulo.",
+    )
+
+    with patch("app.modules.jobs_career.sources.gupy.GupyAdapter.fetch_jobs", new_callable=AsyncMock, return_value=[matching_gupy, wrong_seniority_gupy]):
+        with patch("app.modules.jobs_career.sources.remoteok.RemoteOKAdapter.fetch_jobs", new_callable=AsyncMock, return_value=[wrong_location_rok]):
+            with patch("app.modules.jobs_career.sources.linkedin_guest.LinkedInGuestAdapter.fetch_jobs", new_callable=AsyncMock, return_value=[wrong_model_li]):
+                with patch("app.modules.jobs_career.sources.jobicy.JobicyAdapter.fetch_jobs", new_callable=AsyncMock, return_value=[]):
+                    resp = client.post(
+                        "/api/v1/jobs/search",
+                        headers=headers,
+                        json={
+                            "query": "python",
+                            "sources": ["gupy", "remoteok", "linkedin", "jobicy"],
+                            "seniority": "senior",
+                            "location": "Brasil",
+                            "work_model": "remote",
+                        },
+                    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total_fetched"] == 1
+    assert len(body["items"]) == 1
+    assert body["items"][0]["job"]["title"] == "Engenheiro Python Sênior"
+
+    # Testa filtros em GET /api/v1/jobs
+    # Primeiro ingere uma vaga presencial júnior no US para confirmar exclusão
+    client.post(
+        "/api/v1/jobs/ingest",
+        headers=headers,
+        json={
+            "title": "Junior Python Dev",
+            "company_name": "USCorp",
+            "location": "New York, USA",
+            "work_model": "onsite",
+            "description_raw": "Junior onsite Python job in New York.",
+        },
+    )
+
+    list_ok = client.get("/api/v1/jobs?seniority=senior&location=Brasil&work_model=remote", headers=headers)
+    assert list_ok.status_code == 200
+    assert list_ok.json()["total"] == 1
+    assert list_ok.json()["items"][0]["job"]["title"] == "Engenheiro Python Sênior"
+
+    list_jr = client.get("/api/v1/jobs?seniority=junior&work_model=onsite", headers=headers)
+    assert list_jr.status_code == 200
+    assert list_jr.json()["total"] == 1
+    assert list_jr.json()["items"][0]["job"]["title"] == "Junior Python Dev"

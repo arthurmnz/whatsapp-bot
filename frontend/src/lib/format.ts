@@ -119,13 +119,68 @@ export const SKILL_PROFICIENCIES: Array<{ value: string; label: string }> = [
 ];
 
 export const JOB_SOURCES: Array<{ id: string; label: string; hint: string }> = [
-  { id: 'github_br', label: 'GitHub BR', hint: 'Comunidades tech brasileiras' },
+  { id: 'gupy', label: 'Gupy (Brasil)', hint: 'Portal de vagas brasileiro' },
+  { id: 'linkedin', label: 'LinkedIn Vagas', hint: 'Busca pública de vagas LinkedIn' },
+  { id: 'github_br', label: 'GitHub Vagas BR', hint: 'Comunidades tech brasileiras' },
   { id: 'remotive', label: 'Remotive', hint: 'Vagas remotas globais' },
+  { id: 'remoteok', label: 'RemoteOK', hint: 'Vagas tech remotas globais' },
+  { id: 'jobicy', label: 'Jobicy', hint: 'Vagas remotas internacionais' },
   { id: 'arbeitnow', label: 'Arbeitnow', hint: 'Tech Europa & remoto' },
   { id: 'himalayas', label: 'Himalayas', hint: 'Empresas remote-first' },
-  { id: 'greenhouse', label: 'Greenhouse', hint: 'Boards das empresas-alvo' },
-  { id: 'lever', label: 'Lever', hint: 'Boards das empresas-alvo' },
+  { id: 'greenhouse', label: 'Greenhouse ATS', hint: 'Boards das empresas-alvo' },
+  { id: 'lever', label: 'Lever ATS', hint: 'Boards das empresas-alvo' },
 ];
+
+export const JOB_SENIORITY_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'Todas' },
+  { value: 'intern', label: 'Estágio / Trainee' },
+  { value: 'junior', label: 'Júnior' },
+  { value: 'mid', label: 'Pleno' },
+  { value: 'senior', label: 'Sênior' },
+  { value: 'lead', label: 'Tech Lead / Staff' },
+];
+
+export const JOB_WORK_MODEL_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'Todos' },
+  { value: 'remote', label: 'Remoto' },
+  { value: 'hybrid', label: 'Híbrido' },
+  { value: 'onsite', label: 'Presencial' },
+];
+
+export const JOB_LOCATION_SUGGESTIONS: string[] = [
+  'Brasil',
+  'São Paulo',
+  'LATAM',
+  'Worldwide',
+  'Estados Unidos',
+  'Europa',
+];
+
+export function getSeniorityLabel(seniority: string | null | undefined): string | null {
+  switch ((seniority || '').toLowerCase().trim()) {
+    case 'intern':
+    case 'trainee':
+    case 'estagio':
+    case 'estágio':
+      return 'Estágio';
+    case 'junior':
+    case 'júnior':
+      return 'Júnior';
+    case 'mid':
+    case 'pleno':
+      return 'Pleno';
+    case 'senior':
+    case 'sênior':
+      return 'Sênior';
+    case 'lead':
+    case 'staff':
+    case 'principal':
+    case 'tech lead':
+      return 'Tech Lead';
+    default:
+      return null;
+  }
+}
 
 export const APPLICATION_STAGES: Array<{
   id: ApplicationStage;

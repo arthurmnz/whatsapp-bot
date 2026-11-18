@@ -16,18 +16,30 @@ import {
   Radar,
   Search,
   Sparkles,
+  X,
   XCircle,
 } from 'lucide-react';
 import { ApiError, api } from '../lib/api';
 import {
+  JOB_LOCATION_SUGGESTIONS,
+  JOB_SENIORITY_OPTIONS,
   JOB_SOURCES,
+  JOB_WORK_MODEL_OPTIONS,
   formatRelativeDate,
   formatSalaryRange,
   getContractLabel,
+  getSeniorityLabel,
   getWorkModelLabel,
   sanitizeExternalUrl,
 } from '../lib/format';
-import type { JobApplication, JobMatchItem, JobMatchStatus, TailorPrefillContext } from '../types/api';
+import type {
+  JobApplication,
+  JobMatchItem,
+  JobMatchStatus,
+  JobSeniorityFilter,
+  JobWorkModelFilter,
+  TailorPrefillContext,
+} from '../types/api';
 import { Modal } from '../components/ui/Modal';
 import { ScoreBadge, SkeletonBlock } from '../components/ui/ScoreBadge';
 import { useToast } from '../components/ui/Toast';
@@ -69,6 +81,9 @@ export const JobsRadarView: React.FC<JobsRadarViewProps> = ({
 
   // Search controls (POST /api/v1/jobs/search)
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchSeniority, setSearchSeniority] = useState<JobSeniorityFilter>('');
+  const [searchLocation, setSearchLocation] = useState('');
+  const [searchWorkModel, setSearchWorkModel] = useState<JobWorkModelFilter>('');
   const [selectedSources, setSelectedSources] = useState<string[]>(
     JOB_SOURCES.map((s) => s.id),
   );
@@ -89,6 +104,9 @@ export const JobsRadarView: React.FC<JobsRadarViewProps> = ({
   const [minScore, setMinScore] = useState<number>(0);
   const [sourceFilter, setSourceFilter] = useState<string>('');
   const [languageFilter, setLanguageFilter] = useState<string>('');
+  const [seniorityFilter, setSeniorityFilter] = useState<JobSeniorityFilter>('');
+  const [locationFilter, setLocationFilter] = useState<string>('');
+  const [workModelFilter, setWorkModelFilter] = useState<JobWorkModelFilter>('');
   const [localSearch, setLocalSearch] = useState<string>('');
 
   const [expandedMatchIds, setExpandedMatchIds] = useState<Set<number>>(new Set());
@@ -116,6 +134,9 @@ export const JobsRadarView: React.FC<JobsRadarViewProps> = ({
         min_score: minScore,
         source: sourceFilter || undefined,
         language: languageFilter || undefined,
+        seniority: seniorityFilter || undefined,
+        location: locationFilter.trim() || undefined,
+        work_model: workModelFilter || undefined,
         search: localSearch || undefined,
         limit: 50,
       });
@@ -126,7 +147,16 @@ export const JobsRadarView: React.FC<JobsRadarViewProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, minScore, sourceFilter, languageFilter, localSearch]);
+  }, [
+    statusFilter,
+    minScore,
+    sourceFilter,
+    languageFilter,
+    seniorityFilter,
+    locationFilter,
+    workModelFilter,
+    localSearch,
+  ]);
 
   useEffect(() => {
     void loadJobs();
@@ -158,6 +188,9 @@ export const JobsRadarView: React.FC<JobsRadarViewProps> = ({
         limit_per_source: 15,
         greenhouse_slugs: slugs.length ? slugs : undefined,
         lever_slugs: slugs.length ? slugs : undefined,
+        seniority: searchSeniority || undefined,
+        location: searchLocation.trim() || undefined,
+        work_model: searchWorkModel || undefined,
       });
       setLastSearchSummary({ total_fetched: res.total_fetched, sources: res.sources });
       pushToast(`${res.total_fetched} vaga(s) avaliada(s) nas fontes selecionadas.`, 'success');
@@ -292,6 +325,27 @@ export const JobsRadarView: React.FC<JobsRadarViewProps> = ({
     });
   };
 
+  const hasActiveListFilters =
+    Boolean(statusFilter) ||
+    minScore > 0 ||
+    Boolean(sourceFilter) ||
+    Boolean(languageFilter) ||
+    Boolean(seniorityFilter) ||
+    Boolean(locationFilter.trim()) ||
+    Boolean(workModelFilter) ||
+    Boolean(localSearch.trim());
+
+  const clearListFilters = () => {
+    setStatusFilter('');
+    setMinScore(0);
+    setSourceFilter('');
+    setLanguageFilter('');
+    setSeniorityFilter('');
+    setLocationFilter('');
+    setWorkModelFilter('');
+    setLocalSearch('');
+  };
+
   const showAtsSlugInput =
     selectedSources.includes('greenhouse') || selectedSources.includes('lever');
 
@@ -343,7 +397,7 @@ export const JobsRadarView: React.FC<JobsRadarViewProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Filtro opcional (ex: Python, FastAPI, React). Se vazio, usa seu cargo-alvo."
+              placeholder="Cargo ou tecnologia (ex: Python, FastAPI, React). Se vazio, usa seu cargo-alvo."
               className="w-full rounded-lg border border-slate-700/80 bg-[#0b0e14] py-2.5 pl-9 pr-3.5 text-sm text-slate-100 placeholder-[#8896ab] focus:border-emerald-500/70 focus:outline-none"
             />
           </div>
@@ -366,9 +420,118 @@ export const JobsRadarView: React.FC<JobsRadarViewProps> = ({
           </button>
         </div>
 
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-medium text-slate-400">Fontes gratuitas:</span>
+        {/* Search scope selectors: Seniority, Work Model & Region/Location */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="space-y-1">
+            <label htmlFor="search-seniority" className="block text-[11px] font-medium text-slate-400">
+              Senioridade da Busca
+            </label>
+            <select
+              id="search-seniority"
+              value={searchSeniority}
+              onChange={(e) => setSearchSeniority(e.target.value as JobSeniorityFilter)}
+              className="w-full rounded-lg border border-slate-700/80 bg-[#0b0e14] px-3 py-2 text-xs text-slate-100 focus:border-emerald-500/70 focus:outline-none"
+            >
+              {JOB_SENIORITY_OPTIONS.map((opt) => (
+                <option key={opt.value || 'all'} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label htmlFor="search-work-model" className="block text-[11px] font-medium text-slate-400">
+              Modelo de Trabalho
+            </label>
+            <select
+              id="search-work-model"
+              value={searchWorkModel}
+              onChange={(e) => setSearchWorkModel(e.target.value as JobWorkModelFilter)}
+              className="w-full rounded-lg border border-slate-700/80 bg-[#0b0e14] px-3 py-2 text-xs text-slate-100 focus:border-emerald-500/70 focus:outline-none"
+            >
+              {JOB_WORK_MODEL_OPTIONS.map((opt) => (
+                <option key={opt.value || 'all'} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label htmlFor="search-location" className="block text-[11px] font-medium text-slate-400">
+              Região / Localidade
+            </label>
+            <div className="relative">
+              <MapPin className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8896ab]" />
+              <input
+                id="search-location"
+                type="text"
+                value={searchLocation}
+                onChange={(e) => setSearchLocation(e.target.value)}
+                placeholder="Ex: Brasil, São Paulo, LATAM..."
+                className="w-full rounded-lg border border-slate-700/80 bg-[#0b0e14] py-2 pl-8 pr-7 text-xs text-slate-100 placeholder-[#8896ab] focus:border-emerald-500/70 focus:outline-none"
+              />
+              {searchLocation && (
+                <button
+                  type="button"
+                  onClick={() => setSearchLocation('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:text-slate-200"
+                  aria-label="Limpar região da busca"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] text-[#8896ab]">Regiões rápidas:</span>
+          {JOB_LOCATION_SUGGESTIONS.map((loc) => {
+            const active = searchLocation.trim().toLowerCase() === loc.toLowerCase();
+            return (
+              <button
+                key={loc}
+                type="button"
+                onClick={() => setSearchLocation(active ? '' : loc)}
+                className={`rounded border px-2 py-0.5 text-[11px] transition-colors ${
+                  active
+                    ? 'border-sky-500/45 bg-sky-500/15 text-sky-200'
+                    : 'border-slate-800 bg-[#0b0e14] text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                }`}
+              >
+                {loc}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="space-y-2 border-t border-slate-800/80 pt-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[11px] font-medium text-slate-400">
+              Fontes gratuitas ({selectedSources.length}/{JOB_SOURCES.length}):
+            </span>
+            <div className="flex items-center gap-2 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setSelectedSources(JOB_SOURCES.map((s) => s.id))}
+                className="text-sky-400 hover:text-sky-300"
+              >
+                Selecionar todas
+              </button>
+              <span className="text-slate-600">·</span>
+              <button
+                type="button"
+                onClick={() => setSelectedSources([])}
+                className="text-slate-400 hover:text-slate-200"
+              >
+                Limpar
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
             {JOB_SOURCES.map((src) => {
               const active = selectedSources.includes(src.id);
               return (
@@ -428,35 +591,104 @@ export const JobsRadarView: React.FC<JobsRadarViewProps> = ({
       </form>
 
       {/* Local filtering bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800/80 bg-[#111621]/70 px-4 py-3">
-        <div className="flex flex-wrap items-center gap-1">
-          {STATUS_TABS.map((tab) => {
-            const active = statusFilter === tab.id;
-            return (
-              <button
-                key={tab.id || 'all'}
-                type="button"
-                onClick={() => setStatusFilter(tab.id)}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                  active
-                    ? 'bg-slate-800 text-slate-50'
-                    : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'
-                }`}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
+      <div className="space-y-3 rounded-xl border border-slate-800/80 bg-[#111621]/70 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1">
+            {STATUS_TABS.map((tab) => {
+              const active = statusFilter === tab.id;
+              return (
+                <button
+                  key={tab.id || 'all'}
+                  type="button"
+                  onClick={() => setStatusFilter(tab.id)}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    active
+                      ? 'bg-slate-800 text-slate-50'
+                      : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {hasActiveListFilters && (
+            <button
+              type="button"
+              onClick={clearListFilters}
+              className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2.5 py-1 text-[11px] font-medium text-slate-300 hover:bg-slate-800"
+            >
+              <X className="h-3 w-3" />
+              Limpar filtros
+            </button>
+          )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-7">
           <input
             type="text"
             value={localSearch}
             onChange={(e) => setLocalSearch(e.target.value)}
-            placeholder="Filtrar lista..."
-            className="w-40 rounded-md border border-slate-700/80 bg-[#0b0e14] px-2.5 py-1.5 text-xs text-slate-100 placeholder-[#8896ab] focus:border-sky-500/70 focus:outline-none"
+            placeholder="Filtrar cargo/empresa..."
+            className="rounded-md border border-slate-700/80 bg-[#0b0e14] px-2.5 py-1.5 text-xs text-slate-100 placeholder-[#8896ab] focus:border-sky-500/70 focus:outline-none"
           />
+
+          <select
+            aria-label="Filtrar por senioridade"
+            value={seniorityFilter}
+            onChange={(e) => setSeniorityFilter(e.target.value as JobSeniorityFilter)}
+            className="rounded-md border border-slate-700/80 bg-[#0b0e14] px-2.5 py-1.5 text-xs text-slate-200 focus:border-sky-500/70 focus:outline-none"
+          >
+            <option value="">Senioridade: Todas</option>
+            {JOB_SENIORITY_OPTIONS.filter((opt) => opt.value).map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            aria-label="Filtrar por modelo de trabalho"
+            value={workModelFilter}
+            onChange={(e) => setWorkModelFilter(e.target.value as JobWorkModelFilter)}
+            className="rounded-md border border-slate-700/80 bg-[#0b0e14] px-2.5 py-1.5 text-xs text-slate-200 focus:border-sky-500/70 focus:outline-none"
+          >
+            <option value="">Modelo: Todos</option>
+            {JOB_WORK_MODEL_OPTIONS.filter((opt) => opt.value).map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+
+          <div className="relative">
+            <input
+              type="text"
+              list="filter-location-suggestions"
+              aria-label="Filtrar por região ou localidade"
+              value={locationFilter}
+              onChange={(e) => setLocationFilter(e.target.value)}
+              placeholder="Região/Local..."
+              className="w-full rounded-md border border-slate-700/80 bg-[#0b0e14] px-2.5 py-1.5 pr-6 text-xs text-slate-100 placeholder-[#8896ab] focus:border-sky-500/70 focus:outline-none"
+            />
+            <datalist id="filter-location-suggestions">
+              {JOB_LOCATION_SUGGESTIONS.map((loc) => (
+                <option key={loc} value={loc} />
+              ))}
+            </datalist>
+            {locationFilter && (
+              <button
+                type="button"
+                onClick={() => setLocationFilter('')}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                aria-label="Limpar filtro de região"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+
           <select
             aria-label="Score mínimo"
             value={minScore}
@@ -468,6 +700,7 @@ export const JobsRadarView: React.FC<JobsRadarViewProps> = ({
             <option value={70}>Score &ge; 70%</option>
             <option value={85}>Score &ge; 85%</option>
           </select>
+
           <select
             aria-label="Filtrar por fonte"
             value={sourceFilter}
@@ -482,6 +715,7 @@ export const JobsRadarView: React.FC<JobsRadarViewProps> = ({
             ))}
             <option value="manual">Manual</option>
           </select>
+
           <select
             aria-label="Filtrar por idioma"
             value={languageFilter}
@@ -543,6 +777,7 @@ export const JobsRadarView: React.FC<JobsRadarViewProps> = ({
               job.salary_max,
               job.salary_currency,
             );
+            const seniorityLabel = getSeniorityLabel(job.seniority);
             const safeUrl = sanitizeExternalUrl(job.source_url);
             const b = match.score_breakdown || {};
             const isBusy = busyMatchId === match.match_id;
@@ -557,6 +792,11 @@ export const JobsRadarView: React.FC<JobsRadarViewProps> = ({
                     <div className="flex flex-wrap items-center gap-2">
                       <ScoreBadge score={match.match_score} />
                       <h2 className="text-base font-semibold text-slate-50">{job.title}</h2>
+                      {seniorityLabel && (
+                        <span className="rounded border border-cyan-500/35 bg-cyan-500/12 px-2 py-0.5 text-[11px] font-medium text-cyan-200">
+                          {seniorityLabel}
+                        </span>
+                      )}
                       {match.status === 'saved' && (
                         <span className="rounded border border-sky-500/30 bg-sky-500/12 px-2 py-0.5 text-[11px] font-medium text-sky-300">
                           Salva

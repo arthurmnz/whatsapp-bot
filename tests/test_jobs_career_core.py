@@ -500,3 +500,166 @@ async def test_cv_tailor_preserves_omitted_skills_and_improves_deterministically
     assert len(set(scores_after)) == 1  # 100% consistente entre execuções seguidas
     assert runs[0]["ats_score_after"] >= runs[0]["ats_score_before"] + 15
     assert "Engenheiro Backend Python Sênior" in runs[0]["tailored_data"]["headline"]
+
+
+def test_infer_seniority_levels():
+    from app.modules.jobs_career.skills_taxonomy import infer_seniority
+
+    assert infer_seniority("Estágio em Desenvolvimento Python") == "intern"
+    assert infer_seniority("Programa Trainee TI") == "intern"
+    assert infer_seniority("Software Engineering Intern") == "intern"
+    assert infer_seniority("Desenvolvedor Júnior") == "junior"
+    assert infer_seniority("Backend Developer Pleno") == "mid"
+    assert infer_seniority("Engenheiro Python Sênior") == "senior"
+    assert infer_seniority("Tech Lead Backend") == "lead"
+    assert infer_seniority("Staff Software Engineer") == "lead"
+    assert infer_seniority("Especialista Python") == "lead"
+
+
+@pytest.mark.asyncio
+async def test_new_free_job_adapters_gupy_linkedin_remoteok_jobicy():
+    from app.modules.jobs_career.sources import (
+        GupyAdapter,
+        JobicyAdapter,
+        LinkedInGuestAdapter,
+        RemoteOKAdapter,
+    )
+
+    # 1. GupyAdapter
+    gupy_resp = MagicMock()
+    gupy_resp.is_error = False
+    gupy_resp.json.return_value = {
+        "data": [
+            {
+                "id": 101,
+                "name": "Desenvolvedor Python Pleno",
+                "description": "<p>Vaga remota com Python, FastAPI e PostgreSQL.</p>",
+                "companyName": "GupyTech",
+                "city": "São Paulo",
+                "state": "SP",
+                "country": "Brasil",
+                "isRemoteWork": True,
+                "workplaceType": "remote",
+                "jobUrl": "https://gupytech.gupy.io/jobs/101",
+                "publishedDate": "2026-11-10T10:00:00Z",
+            }
+        ]
+    }
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=gupy_resp) as mock_get:
+        gupy_jobs = await GupyAdapter().fetch_jobs(query="python", limit=10, seniority="mid", work_model="remote")
+    assert len(gupy_jobs) == 1
+    assert gupy_jobs[0].source == "gupy"
+    assert gupy_jobs[0].location == "São Paulo, SP, Brasil"
+    assert gupy_jobs[0].work_model == "remote"
+    assert gupy_jobs[0].seniority == "mid"
+    assert mock_get.call_args.kwargs["params"]["workplaceType"] == "remote"
+    assert "pleno" in mock_get.call_args.kwargs["params"]["jobName"].lower()
+
+    # 2. LinkedInGuestAdapter (1 card enriquecido, 1 card com fallback quando detalhe retorna 429)
+    search_html = """
+    <ul>
+      <li>
+        <div class="base-search-card" data-entity-urn="urn:li:jobPosting:400111222">
+          <a class="base-card__full-link" href="https://www.linkedin.com/jobs/view/python-senior-400111222?trk=public"></a>
+          <h3 class="base-search-card__title">Senior Python Engineer</h3>
+          <h4 class="base-search-card__subtitle">CloudCorp</h4>
+          <span class="job-search-card__location">São Paulo, Brasil</span>
+          <time datetime="2026-11-12">2026-11-12</time>
+        </div>
+      </li>
+      <li>
+        <div class="base-search-card" data-entity-urn="urn:li:jobPosting:400111333">
+          <a class="base-card__full-link" href="https://www.linkedin.com/jobs/view/backend-dev-400111333"></a>
+          <h3 class="base-search-card__title">Backend Developer</h3>
+          <h4 class="base-search-card__subtitle">DataCorp</h4>
+          <span class="job-search-card__location">Brasil</span>
+          <time datetime="2026-11-13">2026-11-13</time>
+        </div>
+      </li>
+    </ul>
+    """
+    li_search_resp = MagicMock(status_code=200, text=search_html)
+    li_detail_ok = MagicMock(
+        status_code=200,
+        text='<div class="show-more-less-html__markup">We use Python, FastAPI and Docker in AWS.</div>',
+    )
+    li_detail_429 = MagicMock(status_code=429, text="Rate limited")
+
+    async def _li_get(url, **kwargs):
+        if "seeMoreJobPostings" in url:
+            assert kwargs["params"]["f_WT"] == "2"
+            return li_search_resp
+        if "400111222" in url:
+            return li_detail_ok
+        return li_detail_429
+
+    with patch("httpx.AsyncClient.get", side_effect=_li_get):
+        li_jobs = await LinkedInGuestAdapter().fetch_jobs(
+            query="python", limit=10, seniority="senior", location="Brasil", work_model="remote"
+        )
+    assert len(li_jobs) == 2
+    assert li_jobs[0].source == "linkedin"
+    assert "FastAPI" in li_jobs[0].description_raw
+    assert li_jobs[0].seniority == "senior"
+    assert li_jobs[1].company_name == "DataCorp"
+    assert "Backend Developer" in li_jobs[1].description_raw
+
+    # 3. RemoteOKAdapter (ignora legal notice inicial)
+    rok_resp = MagicMock()
+    rok_resp.is_error = False
+    rok_resp.json.return_value = [
+        {"legal": "RemoteOK API notice"},
+        {
+            "id": "9981",
+            "position": "Senior Python Developer",
+            "company": "GlobalRemote",
+            "location": "Worldwide",
+            "tags": ["python", "fastapi", "docker"],
+            "description": "<p>Build APIs with Python and FastAPI.</p>",
+            "url": "https://remoteok.com/remote-jobs/9981",
+            "salary_min": 90000,
+            "salary_max": 120000,
+            "date": "2026-11-14T12:00:00Z",
+        },
+        {
+            "id": "9982",
+            "position": "Marketing Manager",
+            "company": "OtherCo",
+            "tags": ["seo"],
+            "description": "Marketing only",
+        },
+    ]
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=rok_resp):
+        rok_jobs = await RemoteOKAdapter().fetch_jobs(query="python", limit=10)
+    assert len(rok_jobs) == 1
+    assert rok_jobs[0].source == "remoteok"
+    assert rok_jobs[0].salary_min == 90000.0
+
+    # 4. JobicyAdapter
+    jobicy_resp = MagicMock()
+    jobicy_resp.is_error = False
+    jobicy_resp.json.return_value = {
+        "jobs": [
+            {
+                "id": 551,
+                "jobTitle": "Python Backend Engineer",
+                "companyName": "AsyncCo",
+                "jobGeo": "LATAM",
+                "jobType": ["full-time"],
+                "jobLevel": "Senior",
+                "jobIndustry": ["Software"],
+                "jobDescription": "<p>Python, PostgreSQL and Kubernetes.</p>",
+                "url": "https://jobicy.com/jobs/551",
+                "annualSalaryMin": 80000,
+                "annualSalaryMax": 100000,
+                "salaryCurrency": "USD",
+                "pubDate": "2026-11-15T08:00:00Z",
+            }
+        ]
+    }
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=jobicy_resp) as mock_jobicy:
+        jobicy_jobs = await JobicyAdapter().fetch_jobs(query="python", limit=10)
+    assert len(jobicy_jobs) == 1
+    assert jobicy_jobs[0].source == "jobicy"
+    assert jobicy_jobs[0].seniority == "senior"
+    assert mock_jobicy.call_args.kwargs["params"]["tag"] == "python"

@@ -9,9 +9,11 @@ import type {
   ChatThread,
   DeviceActionResponse,
   JobApplication,
+  JobListParams,
   JobMatchItem,
   JobMatchStatus,
   JobPreferences,
+  JobSearchPayload,
   JobSearchResponse,
   RequestOtpResponse,
   SendMessageResponse,
@@ -191,15 +193,7 @@ export const api = {
   },
 
   jobs: {
-    list: (params?: {
-      status?: string;
-      min_score?: number;
-      source?: string;
-      language?: string;
-      search?: string;
-      limit?: number;
-      offset?: number;
-    }) => {
+    list: (params?: JobListParams) => {
       const sp = new URLSearchParams();
       if (params?.status) sp.set('status', params.status);
       if (typeof params?.min_score === 'number' && params.min_score > 0) {
@@ -207,19 +201,16 @@ export const api = {
       }
       if (params?.source) sp.set('source', params.source);
       if (params?.language) sp.set('language', params.language);
+      if (params?.seniority) sp.set('seniority', params.seniority);
+      if (params?.location?.trim()) sp.set('location', params.location.trim());
+      if (params?.work_model) sp.set('work_model', params.work_model);
       if (params?.search?.trim()) sp.set('search', params.search.trim());
       if (params?.limit) sp.set('limit', String(params.limit));
       if (params?.offset) sp.set('offset', String(params.offset));
       const qs = sp.toString();
       return request<{ total: number; items: JobMatchItem[] }>(`/api/v1/jobs${qs ? `?${qs}` : ''}`);
     },
-    search: (body: {
-      query?: string;
-      sources?: string[];
-      limit_per_source?: number;
-      greenhouse_slugs?: string[];
-      lever_slugs?: string[];
-    }) =>
+    search: (body: JobSearchPayload) =>
       request<JobSearchResponse>('/api/v1/jobs/search', {
         method: 'POST',
         body: JSON.stringify(body),

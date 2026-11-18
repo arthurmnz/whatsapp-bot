@@ -96,6 +96,33 @@ export interface CandidateProfile {
 
 export type JobMatchStatus = 'new' | 'notified' | 'saved' | 'dismissed' | 'applied';
 
+export type JobSeniorityFilter = '' | 'intern' | 'junior' | 'mid' | 'senior' | 'lead';
+export type JobWorkModelFilter = '' | 'remote' | 'hybrid' | 'onsite';
+
+export interface JobSearchPayload {
+  query?: string;
+  sources?: string[];
+  limit_per_source?: number;
+  greenhouse_slugs?: string[];
+  lever_slugs?: string[];
+  seniority?: string;
+  location?: string;
+  work_model?: string;
+}
+
+export interface JobListParams {
+  status?: string;
+  min_score?: number;
+  source?: string;
+  language?: string;
+  seniority?: string;
+  location?: string;
+  work_model?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export interface JobPosting {
   id: number;
   source: string;
