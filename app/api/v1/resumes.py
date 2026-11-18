@@ -15,6 +15,8 @@ from app.modules.jobs_career.models import Resume, TailoredResume
 from app.modules.jobs_career.resume_service import (
     create_resume_from_upload,
     delete_resume_with_file,
+    delete_tailored_resume_with_files,
+    save_tailored_as_base_resume,
     regenerate_tailored_files,
     serialize_resume,
     serialize_tailored_resume,
@@ -42,6 +44,12 @@ class UpdateTailoredResumeBody(BaseModel):
     tailored_data: dict[str, Any] | None = None
     target_language: str | None = None
     cover_letter: str | None = None
+
+
+class SaveTailoredAsBaseBody(BaseModel):
+    title: str | None = None
+    is_default: bool = False
+    sync_profile: bool = False
 
 
 @router.get("")
@@ -255,6 +263,49 @@ async def download_tailored_resume(
         media_type=media_type,
         filename=f"cv_otimizado_{item.id}_{item.target_language}.{format}",
     )
+
+
+@router.delete("/tailored/{tailored_id}")
+async def delete_tailored_resume(
+    tailored_id: int,
+    user: User = Depends(require_permission("jobs:cv_tailor")),
+    db: Session = Depends(get_db),
+):
+    item = (
+        db.query(TailoredResume)
+        .filter(TailoredResume.id == tailored_id, TailoredResume.user_id == user.id)
+        .first()
+    )
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Currículo otimizado não encontrado.")
+    delete_tailored_resume_with_files(db, user.id, item)
+    return {"status": "deleted", "id": tailored_id}
+
+
+@router.post("/tailored/{tailored_id}/save-as-base", status_code=status.HTTP_201_CREATED)
+async def save_tailored_resume_as_base(
+    tailored_id: int,
+    body: SaveTailoredAsBaseBody | None = None,
+    user: User = Depends(require_permission("jobs:cv_tailor")),
+    db: Session = Depends(get_db),
+):
+    item = (
+        db.query(TailoredResume)
+        .filter(TailoredResume.id == tailored_id, TailoredResume.user_id == user.id)
+        .first()
+    )
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Currículo otimizado não encontrado.")
+    cfg = body or SaveTailoredAsBaseBody()
+    new_resume = save_tailored_as_base_resume(
+        db,
+        user.id,
+        item,
+        title=cfg.title,
+        is_default=cfg.is_default,
+        sync_profile=cfg.sync_profile,
+    )
+    return serialize_resume(new_resume)
 
 
 @router.patch("/{resume_id}/default")

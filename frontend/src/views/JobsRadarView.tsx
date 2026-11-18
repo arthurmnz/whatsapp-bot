@@ -27,7 +27,7 @@ import {
   getWorkModelLabel,
   sanitizeExternalUrl,
 } from '../lib/format';
-import type { JobMatchItem, JobMatchStatus, TailorPrefillContext } from '../types/api';
+import type { JobApplication, JobMatchItem, JobMatchStatus, TailorPrefillContext } from '../types/api';
 import { Modal } from '../components/ui/Modal';
 import { ScoreBadge, SkeletonBlock } from '../components/ui/ScoreBadge';
 import { useToast } from '../components/ui/Toast';
@@ -44,6 +44,22 @@ const STATUS_TABS: Array<{ id: string; label: string }> = [
   { id: 'applied', label: 'Candidatadas' },
   { id: 'dismissed', label: 'Dispensadas' },
 ];
+
+function findExistingApplicationForMatch(
+  apps: JobApplication[],
+  match: JobMatchItem,
+): JobApplication | undefined {
+  const job = match.job;
+  if (!job) return undefined;
+  const companyLow = (job.company_name || 'Empresa').trim().toLowerCase();
+  const titleLow = job.title.trim().toLowerCase();
+  return apps.find(
+    (a) =>
+      (a.job_id !== null && a.job_id === job.id) ||
+      (a.company_name.trim().toLowerCase() === companyLow &&
+        a.role_title.trim().toLowerCase() === titleLow),
+  );
+}
 
 export const JobsRadarView: React.FC<JobsRadarViewProps> = ({
   onOpenCvStudio,
@@ -204,8 +220,25 @@ export const JobsRadarView: React.FC<JobsRadarViewProps> = ({
     try {
       const updated = await api.jobs.updateMatchStatus(match.match_id, status);
       setItems((prev) => prev.map((it) => (it.match_id === match.match_id ? updated : it)));
+
+      if (status === 'saved' && match.job) {
+        const appsRes = await api.applications.list();
+        const existing = findExistingApplicationForMatch(appsRes.items, match);
+        if (!existing) {
+          await api.applications.create({
+            company_name: match.job.company_name || 'Empresa',
+            role_title: match.job.title,
+            job_id: match.job.id,
+            job_url: match.job.source_url || undefined,
+            stage: 'wishlist',
+          });
+        }
+        pushToast('Vaga salva na aba Salvas e na coluna Interesse do Kanban!', 'success');
+        return;
+      }
+
       const labels: Record<JobMatchStatus, string> = {
-        saved: 'Vaga salva!',
+        saved: 'Vaga salva na aba Salvas e na coluna Interesse do Kanban!',
         applied: 'Marcada como candidatada.',
         dismissed: 'Vaga dispensada.',
         new: 'Restaurada.',
@@ -225,13 +258,20 @@ export const JobsRadarView: React.FC<JobsRadarViewProps> = ({
     try {
       const updated = await api.jobs.updateMatchStatus(match.match_id, 'applied');
       setItems((prev) => prev.map((it) => (it.match_id === match.match_id ? updated : it)));
-      await api.applications.create({
-        company_name: match.job.company_name || 'Empresa',
-        role_title: match.job.title,
-        job_id: match.job.id,
-        job_url: match.job.source_url || undefined,
-        stage: 'applied',
-      });
+
+      const appsRes = await api.applications.list();
+      const existing = findExistingApplicationForMatch(appsRes.items, match);
+      if (existing) {
+        await api.applications.update(existing.id, { stage: 'applied' });
+      } else {
+        await api.applications.create({
+          company_name: match.job.company_name || 'Empresa',
+          role_title: match.job.title,
+          job_id: match.job.id,
+          job_url: match.job.source_url || undefined,
+          stage: 'applied',
+        });
+      }
       pushToast('Candidatura registrada e adicionada ao Kanban!', 'success');
     } catch (err) {
       pushToast(

@@ -632,3 +632,95 @@ def test_normalize_database_url_driver_fallback():
             normalize_database_url("postgresql+psycopg2://u:p@host:5432/db")
             == "postgresql+psycopg://u:p@host:5432/db"
         )
+
+
+def test_tailored_save_as_base_and_delete_endpoints(api_client, tmp_path: Path):
+    client, session_factory = api_client
+    admin_tok = _login_via_otp(client, session_factory, "5511999999999")
+    admin_hdrs = {"Authorization": f"Bearer {admin_tok}"}
+
+    user_tok = _login_via_otp(client, session_factory, "5511988887777")
+    user_hdrs = {"Authorization": f"Bearer {user_tok}"}
+
+    # 1. Cria currículo base inicial (default=True)
+    up_resp = client.post(
+        "/api/v1/resumes/upload",
+        headers=admin_hdrs,
+        files={"file": ("base.txt", b"Arthur Muniz\nPython, FastAPI, Docker", "text/plain")},
+        data={"title": "CV Original", "is_default": "true"},
+    )
+    assert up_resp.status_code == 201
+    orig_base_id = up_resp.json()["id"]
+
+    # 2. Gera currículo otimizado (PDF + DOCX no disco)
+    tailor_resp = client.post(
+        "/api/v1/resumes/tailor",
+        headers=admin_hdrs,
+        json={
+            "base_resume_id": orig_base_id,
+            "job_title": "Backend Engineer",
+            "company_name": "ScaleAI",
+            "job_description": "Python, FastAPI, Docker, PostgreSQL remote role.",
+            "target_language": "en",
+        },
+    )
+    assert tailor_resp.status_code == 201
+    tailored_id = tailor_resp.json()["id"]
+    gen_files_before = list((tmp_path / "generated_cvs").rglob("*"))
+    assert any(f.suffix == ".pdf" for f in gen_files_before)
+    assert any(f.suffix == ".docx" for f in gen_files_before)
+
+    # 3. Outro usuário não pode salvar nem deletar (404)
+    assert client.post(f"/api/v1/resumes/tailored/{tailored_id}/save-as-base", headers=user_hdrs).status_code == 404
+    assert client.delete(f"/api/v1/resumes/tailored/{tailored_id}", headers=user_hdrs).status_code == 404
+
+    # 4. Promove para currículo base com is_default=True e título customizado
+    save_resp = client.post(
+        f"/api/v1/resumes/tailored/{tailored_id}/save-as-base",
+        headers=admin_hdrs,
+        json={"title": "CV ScaleAI Base", "is_default": True, "sync_profile": False},
+    )
+    assert save_resp.status_code == 201
+    saved_base = save_resp.json()
+    assert saved_base["title"] == "CV ScaleAI Base"
+    assert saved_base["is_default"] is True
+    assert saved_base["language"] == "en"
+    assert saved_base["source_format"] == "markdown"
+    assert saved_base["has_file"] is True
+
+    # Verifica que o currículo original deixou de ser default
+    resumes_list = client.get("/api/v1/resumes", headers=admin_hdrs).json()["items"]
+    by_id = {r["id"]: r for r in resumes_list}
+    assert by_id[orig_base_id]["is_default"] is False
+    assert by_id[saved_base["id"]]["is_default"] is True
+
+    # Testa fallback de título automático sem body explícito
+    auto_save = client.post(
+        f"/api/v1/resumes/tailored/{tailored_id}/save-as-base",
+        headers=admin_hdrs,
+    )
+    assert auto_save.status_code == 201
+    assert auto_save.json()["title"] == "CV Otimizado - Backend Engineer (ScaleAI)"
+
+    # 5. Vincula candidatura ao TailoredResume e depois deleta o TailoredResume
+    app_create = client.post(
+        "/api/v1/applications",
+        headers=admin_hdrs,
+        json={"company_name": "ScaleAI", "role_title": "Backend Engineer", "tailored_resume_id": tailored_id},
+    )
+    assert app_create.status_code == 201
+    app_id = app_create.json()["id"]
+
+    del_resp = client.delete(f"/api/v1/resumes/tailored/{tailored_id}", headers=admin_hdrs)
+    assert del_resp.status_code == 200
+    assert del_resp.json() == {"status": "deleted", "id": tailored_id}
+
+    # TailoredResume removido do banco e arquivos PDF/DOCX removidos do disco
+    assert client.get(f"/api/v1/resumes/tailored/{tailored_id}", headers=admin_hdrs).status_code == 404
+    gen_files_after = [f for f in (tmp_path / "generated_cvs").rglob("*") if f.is_file()]
+    assert len(gen_files_after) == 0
+
+    # JobApplication preservada com tailored_resume_id = None
+    apps = client.get("/api/v1/applications", headers=admin_hdrs).json()["items"]
+    app_row = next(a for a in apps if a["id"] == app_id)
+    assert app_row["tailored_resume_id"] is None

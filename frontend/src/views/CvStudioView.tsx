@@ -68,6 +68,7 @@ export const CvStudioView: React.FC<CvStudioViewProps> = ({
 
   // Active result
   const [activeTailored, setActiveTailored] = useState<TailoredResume | null>(null);
+  const [deletingTailoredId, setDeletingTailoredId] = useState<number | null>(null);
   const [previewBaseResume, setPreviewBaseResume] = useState<BaseResume | null>(null);
 
   const loadAll = useCallback(async () => {
@@ -246,6 +247,37 @@ export const CvStudioView: React.FC<CvStudioViewProps> = ({
     }
   };
 
+  const handleDeleteTailored = async (tailoredId: number) => {
+    setDeletingTailoredId(tailoredId);
+    try {
+      await api.resumes.deleteTailored(tailoredId);
+      setTailoredList((prev) => {
+        const remaining = prev.filter((item) => item.id !== tailoredId);
+        if (activeTailored?.id === tailoredId) {
+          setActiveTailored(remaining[0] ?? null);
+        }
+        return remaining;
+      });
+      pushToast('Avaliação de currículo excluída.', 'info');
+    } catch (err) {
+      pushToast(err instanceof ApiError ? err.detail : 'Erro ao excluir avaliação.', 'error');
+    } finally {
+      setDeletingTailoredId(null);
+    }
+  };
+
+  const handleSavedAsBase = (createdBase: BaseResume) => {
+    setResumes((prev) => {
+      const normalized = createdBase.is_default
+        ? prev.map((r) => ({ ...r, is_default: false }))
+        : prev;
+      return [createdBase, ...normalized.filter((r) => r.id !== createdBase.id)];
+    });
+    if (createdBase.is_default || !selectedBaseId) {
+      setSelectedBaseId(String(createdBase.id));
+    }
+  };
+
   if (loading) {
     return (
       <div className="mx-auto max-w-6xl space-y-5 p-6">
@@ -414,7 +446,7 @@ export const CvStudioView: React.FC<CvStudioViewProps> = ({
           {/* Base resumes list */}
           <div className="rounded-xl border border-slate-800/90 bg-[#111621] p-4 space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-              Currículos Base ({resumes.length})
+              Meus Currículos Base ({resumes.length})
             </h3>
             {resumes.length === 0 ? (
               <p className="text-xs text-[#8896ab]">
@@ -686,26 +718,48 @@ export const CvStudioView: React.FC<CvStudioViewProps> = ({
                 <History className="h-3.5 w-3.5 text-sky-400" />
                 Versões Otimizadas Recentes ({tailoredList.length})
               </div>
-              <div className="flex flex-wrap gap-2">
-                {tailoredList.slice(0, 8).map((item) => {
+              <div className="flex max-h-56 flex-wrap gap-2 overflow-y-auto pr-1">
+                {tailoredList.map((item) => {
                   const active = activeTailored?.id === item.id;
+                  const isDeleting = deletingTailoredId === item.id;
                   return (
-                    <button
+                    <div
                       key={item.id}
-                      type="button"
-                      onClick={() => setActiveTailored(item)}
-                      className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
+                      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
                         active
                           ? 'border-emerald-500/50 bg-emerald-500/12 text-slate-50'
                           : 'border-slate-800 bg-[#0c1018] text-slate-300 hover:border-slate-700'
                       }`}
                     >
-                      <span className="max-w-[170px] truncate font-medium">
-                        {item.job_title}
-                        {item.company_name ? ` @ ${item.company_name}` : ''}
-                      </span>
-                      <ScoreBadge score={item.ats_score_after} suffix="" />
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTailored(item)}
+                        className="inline-flex items-center gap-2 text-left"
+                      >
+                        <span className="max-w-[170px] truncate font-medium">
+                          {item.job_title}
+                          {item.company_name ? ` @ ${item.company_name}` : ''}
+                        </span>
+                        <ScoreBadge score={item.ats_score_after} suffix="" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isDeleting}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleDeleteTailored(item.id);
+                        }}
+                        title="Excluir avaliação"
+                        aria-label={`Excluir avaliação ${item.job_title}`}
+                        className="rounded p-1 text-slate-500 transition-colors hover:bg-rose-500/15 hover:text-rose-300 disabled:opacity-50"
+                      >
+                        {isDeleting ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3 w-3" />
+                        )}
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -724,6 +778,8 @@ export const CvStudioView: React.FC<CvStudioViewProps> = ({
               prev.map((item) => (item.id === updated.id ? updated : item)),
             );
           }}
+          onSavedAsBase={handleSavedAsBase}
+          onDeleted={handleDeleteTailored}
           onApplicationCreated={onNavigateApplications}
         />
       ) : (

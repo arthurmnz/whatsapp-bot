@@ -289,6 +289,18 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify(body),
       }),
+    deleteTailored: (tailoredId: number) =>
+      request<{ status: string; id: number }>(`/api/v1/resumes/tailored/${tailoredId}`, {
+        method: 'DELETE',
+      }),
+    saveTailoredAsBase: (
+      tailoredId: number,
+      payload?: { title?: string; is_default?: boolean; sync_profile?: boolean },
+    ) =>
+      request<BaseResume>(`/api/v1/resumes/tailored/${tailoredId}/save-as-base`, {
+        method: 'POST',
+        body: JSON.stringify(payload || {}),
+      }),
     downloadTailored: async (tailoredId: number, format: 'pdf' | 'docx' | 'md'): Promise<void> => {
       const token = getStoredToken();
       const headers = new Headers();

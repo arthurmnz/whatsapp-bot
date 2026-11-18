@@ -132,7 +132,7 @@ export const APPLICATION_STAGES: Array<{
   label: string;
   pillClass: string;
 }> = [
-  { id: 'wishlist', label: 'Desejadas', pillClass: 'bg-slate-700/60 text-slate-200 border-slate-600' },
+  { id: 'wishlist', label: 'Interesse', pillClass: 'bg-slate-700/60 text-slate-200 border-slate-600' },
   { id: 'cv_ready', label: 'CV Otimizado', pillClass: 'bg-sky-500/15 text-sky-300 border-sky-500/30' },
   { id: 'applied', label: 'Candidatada', pillClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
   { id: 'screening', label: 'Triagem / RH', pillClass: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30' },

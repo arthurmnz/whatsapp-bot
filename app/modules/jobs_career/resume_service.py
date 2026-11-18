@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 import os
 from pathlib import Path
 import re
+import shutil
 from typing import Any
 import uuid
 
@@ -22,7 +23,7 @@ from app.modules.jobs_career.cv_renderer import (
     resolve_safe_cv_path,
 )
 from app.modules.jobs_career.cv_tailor import evaluate_and_tailor_cv
-from app.modules.jobs_career.models import JobMatch, JobPosting, Resume, TailoredResume
+from app.modules.jobs_career.models import JobApplication, JobMatch, JobPosting, Resume, TailoredResume
 from app.modules.jobs_career.profile_service import (
     get_or_create_profile,
     sync_profile_from_structured_cv,
@@ -345,3 +346,76 @@ def delete_resume_with_file(db: Session, user_id: int, resume: Resume) -> None:
             pass
     db.delete(resume)
     db.commit()
+
+
+def delete_tailored_resume_with_files(db: Session, user_id: int, tailored: TailoredResume) -> None:
+    """Desvincula candidaturas, apaga arquivos PDF/DOCX seguros e exclui o TailoredResume."""
+    db.query(JobApplication).filter(
+        JobApplication.tailored_resume_id == tailored.id,
+        JobApplication.user_id == user_id,
+    ).update({"tailored_resume_id": None})
+
+    for raw_path in (tailored.pdf_path, tailored.docx_path):
+        if not raw_path:
+            continue
+        try:
+            safe_path = resolve_safe_cv_path(user_id, raw_path)
+            if safe_path.is_file():
+                safe_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+    db.delete(tailored)
+    db.commit()
+
+
+def save_tailored_as_base_resume(
+    db: Session,
+    user_id: int,
+    tailored: TailoredResume,
+    *,
+    title: str | None = None,
+    is_default: bool = False,
+    sync_profile: bool = False,
+) -> Resume:
+    """Promove um currículo otimizado para um currículo base permanente do usuário."""
+    effective_title = (title or "").strip() or (
+        f"CV Otimizado - {tailored.job_title or 'Vaga'}"
+        + (f" ({tailored.company_name})" if tailored.company_name else "")
+    )
+
+    saved_file_path: str | None = None
+    if tailored.pdf_path:
+        try:
+            src_pdf = resolve_safe_cv_path(user_id, tailored.pdf_path)
+            if src_pdf.is_file():
+                dest = _get_uploaded_user_dir(user_id) / f"{uuid.uuid4().hex[:12]}_{_sanitize_slug(effective_title)}.pdf"
+                shutil.copy2(src_pdf, dest)
+                saved_file_path = str(dest)
+        except Exception:
+            saved_file_path = None
+
+    if is_default:
+        db.query(Resume).filter(Resume.user_id == user_id).update({"is_default": False})
+
+    now = datetime.now(timezone.utc)
+    new_resume = Resume(
+        user_id=user_id,
+        title=effective_title[:255],
+        language=tailored.target_language or "pt-BR",
+        is_default=is_default,
+        source_format="markdown",
+        file_path=saved_file_path,
+        raw_text=tailored.tailored_markdown,
+        structured_data=tailored.tailored_data or {},
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(new_resume)
+    db.commit()
+    db.refresh(new_resume)
+
+    if sync_profile and isinstance(new_resume.structured_data, dict):
+        sync_profile_from_structured_cv(db, user_id, new_resume.structured_data, overwrite_summary=False)
+
+    return new_resume

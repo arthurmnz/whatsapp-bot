@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
+  BookmarkPlus,
   Check,
   CheckCircle2,
   Copy,
@@ -14,10 +15,11 @@ import {
   RefreshCw,
   Sparkles,
   Target,
+  Trash2,
 } from 'lucide-react';
 import { ApiError, api } from '../lib/api';
 import { formatRelativeDate } from '../lib/format';
-import type { AtsBreakdown, TailoredResume } from '../types/api';
+import type { AtsBreakdown, BaseResume, TailoredResume } from '../types/api';
 import { useToast } from './ui/Toast';
 
 type ResultSubTab = 'report' | 'editor' | 'cover' | 'interview';
@@ -25,6 +27,8 @@ type ResultSubTab = 'report' | 'editor' | 'cover' | 'interview';
 interface TailoredResultPanelProps {
   tailored: TailoredResume;
   onUpdated: (updated: TailoredResume) => void;
+  onSavedAsBase?: (createdBase: BaseResume) => void;
+  onDeleted?: (tailoredId: number) => Promise<void> | void;
   onApplicationCreated?: () => void;
 }
 
@@ -101,6 +105,8 @@ const renderMarkdownPreview = (md: string): React.ReactNode => {
 export const TailoredResultPanel: React.FC<TailoredResultPanelProps> = ({
   tailored,
   onUpdated,
+  onSavedAsBase,
+  onDeleted,
   onApplicationCreated,
 }) => {
   const { pushToast } = useToast();
@@ -111,6 +117,8 @@ export const TailoredResultPanel: React.FC<TailoredResultPanelProps> = ({
   const [editorMode, setEditorMode] = useState<'split' | 'code' | 'preview'>('split');
 
   const [saving, setSaving] = useState(false);
+  const [savingAsBase, setSavingAsBase] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [downloading, setDownloading] = useState<'pdf' | 'docx' | 'md' | null>(null);
   const [copiedCover, setCopiedCover] = useState(false);
   const [sendingKanban, setSendingKanban] = useState(false);
@@ -135,6 +143,35 @@ export const TailoredResultPanel: React.FC<TailoredResultPanelProps> = ({
       pushToast(err instanceof ApiError ? err.detail : 'Erro ao regerar arquivos.', 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveAsBase = async () => {
+    setSavingAsBase(true);
+    try {
+      const createdBase = await api.resumes.saveTailoredAsBase(tailored.id);
+      onSavedAsBase?.(createdBase);
+      pushToast(
+        `Currículo "${createdBase.title}" salvo em Meus Currículos Base!`,
+        'success',
+      );
+    } catch (err) {
+      pushToast(
+        err instanceof ApiError ? err.detail : 'Erro ao salvar nos currículos base.',
+        'error',
+      );
+    } finally {
+      setSavingAsBase(false);
+    }
+  };
+
+  const handleDeleteEvaluation = async () => {
+    if (!onDeleted) return;
+    setDeleting(true);
+    try {
+      await onDeleted(tailored.id);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -258,6 +295,19 @@ export const TailoredResultPanel: React.FC<TailoredResultPanelProps> = ({
           </button>
           <button
             type="button"
+            disabled={savingAsBase}
+            onClick={() => void handleSaveAsBase()}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/45 bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/25 disabled:opacity-60"
+          >
+            {savingAsBase ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <BookmarkPlus className="h-3.5 w-3.5" />
+            )}
+            Salvar nos Meus Currículos
+          </button>
+          <button
+            type="button"
             disabled={sendingKanban}
             onClick={() => void handleSendToKanban()}
             className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/12 px-3 py-2 text-xs font-medium text-sky-200 hover:bg-sky-500/20 disabled:opacity-60"
@@ -269,6 +319,21 @@ export const TailoredResultPanel: React.FC<TailoredResultPanelProps> = ({
             )}
             Enviar p/ Kanban
           </button>
+          {onDeleted && (
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={() => void handleDeleteEvaluation()}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/35 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-200 hover:bg-rose-500/20 disabled:opacity-60"
+            >
+              {deleting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )}
+              Excluir Avaliação
+            </button>
+          )}
         </div>
       </div>
 
