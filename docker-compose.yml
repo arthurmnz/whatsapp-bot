@@ -41,6 +41,7 @@ services:
     image: postgres:16-alpine
     container_name: whatsapp_postgres
     restart: unless-stopped
+    command: postgres -p 5433
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -50,7 +51,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-whatsapp_bot}"]
+      test: ["CMD-SHELL", "pg_isready -p 5433 -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-whatsapp_bot}"]
       interval: 5s
       timeout: 3s
       retries: 5
