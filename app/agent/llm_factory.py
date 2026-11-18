@@ -135,7 +135,7 @@ def get_chat_llm(
         "base_url": cfg.base_url,
         "temperature": temp,
         "timeout": timeout,
-        "max_retries": 1,
+        "max_retries": 2,
     }
     if cfg.provider == "openrouter":
         kwargs["default_headers"] = {

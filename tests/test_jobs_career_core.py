@@ -424,3 +424,79 @@ def test_production_secrets_enforcement(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("ENCRYPTION_KEY", raising=False)
     with pytest.raises(RuntimeError):
         _get_fernet()
+
+
+@pytest.mark.asyncio
+async def test_cv_tailor_preserves_omitted_skills_and_improves_deterministically_across_runs():
+    cv_text = """
+    Arthur Muniz
+    arthur@example.com
+
+    Habilidades
+    Python, FastAPI, PostgreSQL, Docker, Git
+
+    Experiência Profissional
+    Desenvolvedor — StartupX | 2023 - Atual
+    - Responsável por APIs internas e banco de dados.
+    """
+    job_desc = """
+    Engenheiro Backend Python Sênior
+    Requisitos: Python, FastAPI, PostgreSQL, Docker, Redis, Pytest, CI/CD em produção.
+    """
+
+    # 1. LLM retorna apenas sublista reduzida de skills -> merge deve preservar todas as demais de base_struct
+    captured_prompts = []
+
+    async def _mock_llm(system_prompt, user_prompt, **kwargs):
+        captured_prompts.append((system_prompt, user_prompt))
+        return {
+            "tailored_data": {
+                "headline": "Engenheiro Backend Python Sênior",
+                "summary": "Desenvolvedor com experiência em Python, FastAPI, PostgreSQL, Docker e Redis em produção.",
+                "skills": ["Python", "FastAPI"],  # omitiu PostgreSQL, Docker, Git, Redis
+                "experiences": [
+                    {
+                        "company": "StartupX",
+                        "role": "Desenvolvedor",
+                        "bullets": [
+                            "Arquitetei APIs com Python, FastAPI, PostgreSQL, Docker e Redis, reduzindo latência em produção com Pytest e CI/CD."
+                        ],
+                    }
+                ],
+            }
+        }
+
+    with patch("app.modules.jobs_career.cv_tailor.invoke_llm_json", side_effect=_mock_llm):
+        res_llm = await evaluate_and_tailor_cv(
+            resume_text=cv_text,
+            structured_resume=None,
+            job_description=job_desc,
+            job_title="Engenheiro Backend Python Sênior",
+            target_language="pt-BR",
+            candidate_skills=["Python", "FastAPI", "PostgreSQL", "Docker", "Redis", "Pytest"],
+        )
+
+    assert "KEYWORDS DA VAGA QUE O CANDIDATO DOMINA" in captured_prompts[0][1]
+    assert "STAR/XYZ" in captured_prompts[0][0]
+    for expected_sk in ["Python", "FastAPI", "PostgreSQL", "Docker", "Git", "Redis", "Pytest"]:
+        assert expected_sk in res_llm["tailored_data"]["skills"]
+    assert res_llm["ats_score_after"] >= res_llm["ats_score_before"] + 10
+
+    # 2. Execuções consecutivas com fallback determinístico (LLM retorna None por rate limit)
+    with patch("app.modules.jobs_career.cv_tailor.invoke_llm_json", new_callable=AsyncMock, return_value=None):
+        runs = [
+            await evaluate_and_tailor_cv(
+                resume_text=cv_text,
+                structured_resume=None,
+                job_description=job_desc,
+                job_title="Engenheiro Backend Python Sênior",
+                target_language="pt-BR",
+                candidate_skills=["Python", "FastAPI", "PostgreSQL", "Docker", "Redis", "Pytest"],
+            )
+            for _ in range(3)
+        ]
+
+    scores_after = [r["ats_score_after"] for r in runs]
+    assert len(set(scores_after)) == 1  # 100% consistente entre execuções seguidas
+    assert runs[0]["ats_score_after"] >= runs[0]["ats_score_before"] + 15
+    assert "Engenheiro Backend Python Sênior" in runs[0]["tailored_data"]["headline"]
