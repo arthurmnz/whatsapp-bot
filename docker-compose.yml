@@ -12,6 +12,8 @@ services:
     volumes:
       - ./config:/app/config
       - ./app:/app/app
+      - ./frontend/dist:/app/frontend/dist
+      - ./data:/app/data
     env_file:
       - .env
     depends_on:

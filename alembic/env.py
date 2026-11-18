@@ -7,7 +7,7 @@ from sqlalchemy import engine_from_config, pool
 
 import app.db.models  # noqa: F401
 import app.modules.jobs_career.models  # noqa: F401 - garante registro de todos os modelos no Base.metadata
-from app.db.session import Base, DEFAULT_DATABASE_URL
+from app.db.session import Base, DEFAULT_DATABASE_URL, normalize_database_url
 
 load_dotenv()
 
@@ -20,7 +20,7 @@ target_metadata = Base.metadata
 
 
 def get_url() -> str:
-    return os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL).strip() or DEFAULT_DATABASE_URL
+    return normalize_database_url(os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL))
 
 
 def run_migrations_offline() -> None:

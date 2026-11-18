@@ -617,3 +617,18 @@ async def test_orchestrator_enforces_career_permissions():
     for cmd in ["/perfil", "/skills Python", "/vontades remoto", "/vagas", "/vaga texto", "/avaliar vaga", "/entrevista"]:
         resp = await orch.process_message(db=None, user=restricted_user, message=cmd, channel="web")
         assert "Acesso negado" in resp.reply_text
+
+
+def test_normalize_database_url_driver_fallback():
+    from app.db.session import normalize_database_url
+
+    with patch("importlib.util.find_spec", side_effect=lambda name: object() if name == "psycopg2" else None):
+        assert (
+            normalize_database_url("postgresql+psycopg://u:p@host:5432/db")
+            == "postgresql+psycopg2://u:p@host:5432/db"
+        )
+    with patch("importlib.util.find_spec", side_effect=lambda name: object() if name == "psycopg" else None):
+        assert (
+            normalize_database_url("postgresql+psycopg2://u:p@host:5432/db")
+            == "postgresql+psycopg://u:p@host:5432/db"
+        )

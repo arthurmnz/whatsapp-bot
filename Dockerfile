@@ -11,9 +11,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia o código da aplicação e configurações
+# Copia o código da aplicação, migrações e configurações
 COPY app/ ./app/
 COPY config/ ./config/
+COPY alembic.ini .
+COPY alembic/ ./alembic/
 
 EXPOSE 5050
 
